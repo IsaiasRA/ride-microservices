@@ -1,0 +1,11 @@
+my_project1/app1/__pycache__/error.cpython-314.pyc
+logs/app.log
+my_project1/app1/__pycache__/__init__.cpython-314.pyc
+my_project1/app1/__pycache__/auth.cpython-314.pyc
+my_project1/app1/__pycache__/database.cpython-314.pyc
+my_project1/app1/__pycache__/log.cpython-314.pyc
+my_project1/app1/__pycache__/validation.cpython-314.pyc
+my_project1/app1/routes/__pycache__/drivers.cpython-314.pyc
+my_project1/app1/routes/__pycache__/passengers.cpython-314.pyc
+my_project1/app1/routes/__pycache__/payment_records.cpython-314.pyc
+my_project1/app1/routes/__pycache__/trips.cpython-314.pyc
