@@ -15,7 +15,7 @@ configurar_logging()
 logger = logging.getLogger(__name__)
 
 
-passageiros_bp = Blueprint('API1', __name__)
+passageiros_bp = Blueprint('passageiros', __name__)
 
 
 @passageiros_bp.route('/passageiros', methods=['GET'])
