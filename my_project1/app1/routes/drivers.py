@@ -13,7 +13,7 @@ configurar_logging
 logger = logging.getLogger(__name__)
 
 
-motoristas_bp = Blueprint('API2', __name__)
+motoristas_bp = Blueprint('motoristas', __name__)
 
 
 @motoristas_bp.route('/motoristas', methods=['GET'])
