@@ -4,7 +4,7 @@ from app1.error import (tratamento_erro_mysql,
                         register_erro_handlers,
                         tratamento_erro_requests)
 from app1.log import configurar_logging
-from app1.validation import validar_json
+from app1.validador_json import validar_json
 from app1.auth import (SECRET_KEY, USUARIO, gerar_tokens,
                        rota_protegida, validar_token)
 from datetime import datetime, timedelta, timezone
@@ -182,7 +182,7 @@ with conexao() as cursor:
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS registros_pagamento (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                id_viagem INT UNSIGNED NOT NULL,
+                id_viagem INT UNSIGNED,
                 remetente VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(remetente)) > 0),
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
@@ -195,7 +195,7 @@ with conexao() as cursor:
                 CONSTRAINT fk_registro_viagem
                    FOREIGN KEY (id_viagem)
                    REFERENCES viagens(id)
-                   ON DELETE CASCADE ON UPDATE CASCADE,
+                   ON DELETE SET NULL ON UPDATE RESTRICT,
                 INDEX idx_registro_viagem (id_viagem)
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
