@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 viagens_bp = Blueprint('viagens', __name__)
 
 
-@viagens_bp.route('/viagens', methods=['GET'])
+@viagens_bp.route('/', methods=['GET'])
 @rota_protegida
 def listar_viagens():
     try:
@@ -58,7 +58,7 @@ def listar_viagens():
         return jsonify({'erro': 'Erro inesperado ao listar viagens!'}), 500
 
 
-@viagens_bp.route('/viagens/<int:id>', methods=['GET'])
+@viagens_bp.route('/<int:id>', methods=['GET'])
 @rota_protegida
 def buscar_viagem(id):
     try:
@@ -98,7 +98,7 @@ def buscar_viagem(id):
         return jsonify({'erro': 'Erro inesperado ao buscar viagem!'}), 500
 
 
-@viagens_bp.route('/viagens', methods=['POST'])
+@viagens_bp.route('/', methods=['POST'])
 @rota_protegida
 def adicionar_viagem():
     try:
@@ -289,7 +289,7 @@ def adicionar_viagem():
         return jsonify({'erro': 'Erro inesperado ao adicionar viagem!'}), 500
 
 
-@viagens_bp.route('/viagens/<int:id>', methods=['PUT'])
+@viagens_bp.route('/<int:id>', methods=['PUT'])
 @rota_protegida
 def atualizar_viagens(id):
     try:
@@ -421,7 +421,7 @@ def atualizar_viagens(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar viagem!'}), 500
 
 
-@viagens_bp.route('/viagens/<int:id>', methods=['DELETE'])
+@viagens_bp.route('/<int:id>', methods=['DELETE'])
 @rota_protegida
 def deletar_viagem(id):
     try:

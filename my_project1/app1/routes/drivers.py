@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 motoristas_bp = Blueprint('motoristas', __name__)
 
 
-@motoristas_bp.route('/motoristas', methods=['GET'])
+@motoristas_bp.route('/', methods=['GET'])
 @rota_protegida
 def listar_motoristas():
     try:
@@ -51,7 +51,7 @@ def listar_motoristas():
         return jsonify({'erro': 'Erro inesperado ao listar motoristas!'}), 500
 
 
-@motoristas_bp.route('/motoristas/<int:id>', methods=['GET'])
+@motoristas_bp.route('/<int:id>', methods=['GET'])
 @rota_protegida
 def buscar_motorista(id):
     try:
@@ -86,7 +86,7 @@ def buscar_motorista(id):
         return jsonify({'erro': 'Erro inesperado ao buscar motorista!'}), 500
 
 
-@motoristas_bp.route('/motoristas', methods=['POST'])
+@motoristas_bp.route('/', methods=['POST'])
 @rota_protegida
 def adicionar_motorista():
     try:
@@ -160,7 +160,7 @@ def adicionar_motorista():
         return jsonify({'erro': 'Erro inesperado ao adicionar motorista!'}), 500
 
 
-@motoristas_bp.route('/motoristas/<int:id>', methods=['PUT'])
+@motoristas_bp.route('/<int:id>', methods=['PUT'])
 @rota_protegida
 def atualizar_motorista(id):
     try:
@@ -249,7 +249,7 @@ def atualizar_motorista(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar motorista!'}), 500
 
 
-@motoristas_bp.route('/motoristas/<int:id>', methods=['DELETE'])
+@motoristas_bp.route('/<int:id>', methods=['DELETE'])
 @rota_protegida
 def deletar_motorista(id):
     try:
