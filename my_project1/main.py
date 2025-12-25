@@ -1684,4 +1684,6 @@ if __name__ == '__main__':
             (app4, 5004)]
 
     for app, port in apis:
-        threading.Thread(target=start_api, args=(app, port)).start()
+        threading.Thread(target=start_api,
+                          args=(app, port),
+                          daemon=True).start()
