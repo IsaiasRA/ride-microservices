@@ -1676,12 +1676,19 @@ def start_api(app, port):
     app.run(debug=True, port=port, use_reloader=False)
 
 
-if __name__ == '__main__':
-    logger.info('Iniciando APIs...')
+def main():
     apis = [(app1, 5001),
             (app2, 5002),
             (app3, 5003),
             (app4, 5004)]
+        
 
     for app, port in apis:
-        threading.Thread(target=start_api, args=(app, port)).start()
+        threading.Thread(target=start_api,
+                        args=(app, port),
+                        daemon=True).start()
+
+    input('APIs rodando. Pressione ENTER para sair.\n')
+    
+if __name__ == '__main__':
+    main()

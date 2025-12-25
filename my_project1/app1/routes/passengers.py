@@ -15,10 +15,10 @@ configurar_logging()
 logger = logging.getLogger(__name__)
 
 
-passageiros_bp = Blueprint('API1', __name__)
+passageiros_bp = Blueprint('passageiros', __name__)
 
 
-@passageiros_bp.route('/passageiros', methods=['GET'])
+@passageiros_bp.route('/', methods=['GET'])
 @rota_protegida
 def listar_passageiros():
     try:
@@ -56,7 +56,7 @@ def listar_passageiros():
         return jsonify({'erro': 'Erro inesperado ao listar passageiros!'}), 500
 
 
-@passageiros_bp.route('/passageiros/<int:id>', methods=['GET'])
+@passageiros_bp.route('/<int:id>', methods=['GET'])
 @rota_protegida
 def buscar_passageiro(id):
     try:
@@ -199,7 +199,7 @@ def refresh():
         return jsonify({'erro': 'Erro inesperado ao renovar token!'}), 500
 
 
-@passageiros_bp.route('/passageiros', methods=['POST'])
+@passageiros_bp.route('/', methods=['POST'])
 @rota_protegida
 def adicionar_passageiro():
     try:
@@ -295,7 +295,7 @@ def adicionar_passageiro():
         return jsonify({'erro': 'Erro inesperado ao adicionar passageiro!'}), 500
 
 
-@passageiros_bp.route('/passageiros/<int:id>', methods=['PUT'])
+@passageiros_bp.route('/<int:id>', methods=['PUT'])
 @rota_protegida
 def atualizar_passageiro(id):
     try:
@@ -387,7 +387,7 @@ def atualizar_passageiro(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar passageiro!'}), 500
 
 
-@passageiros_bp.route('/passageiros/<int:id>', methods=['DELETE'])
+@passageiros_bp.route('/<int:id>', methods=['DELETE'])
 @rota_protegida
 def deletar_passageiro(id):
     try:
