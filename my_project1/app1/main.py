@@ -4,7 +4,7 @@ from app1.error import (tratamento_erro_mysql,
                         register_erro_handlers,
                         tratamento_erro_requests)
 from app1.log import configurar_logging
-from app1.validador_json import validar_json
+from app1.validation import validar_json
 from app1.auth import (SECRET_KEY, USUARIO, gerar_tokens,
                        rota_protegida, validar_token)
 from datetime import datetime, timedelta, timezone
