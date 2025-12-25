@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 registros_pagamento_bp = Blueprint('registros-pagamento', __name__)
 
 
-@registros_pagamento_bp.route('/registros-pagamento', methods=['GET'])
+@registros_pagamento_bp.route('/', methods=['GET'])
 @rota_protegida
 def listar_registros_pagamento():
     try:
@@ -50,7 +50,7 @@ def listar_registros_pagamento():
             {'erro': 'Erro inesperado ao listar registros de pagamentos!'}), 500
 
 
-@registros_pagamento_bp.route('/registros-pagamento/<int:id>', methods=['GET'])
+@registros_pagamento_bp.route('/<int:id>', methods=['GET'])
 @rota_protegida
 def buscar_registro_pagamento(id):
     try:
@@ -83,7 +83,7 @@ def buscar_registro_pagamento(id):
         return jsonify({'erro': 'Erro inesperado ao buscar registro de pagamento!'}), 500
 
 
-@registros_pagamento_bp.route('/registros-pagamento', methods=['POST'])
+@registros_pagamento_bp.route('/', methods=['POST'])
 @rota_protegida
 def adicionar_pagamento():
     try:
@@ -211,7 +211,7 @@ def adicionar_pagamento():
             {'erro': 'Erro inesperado ao adicionar registro de pagamento!'}), 500
 
 
-@registros_pagamento_bp.route('/registros-pagamento/<int:id>', methods=['PUT'])
+@registros_pagamento_bp.route('/<int:id>', methods=['PUT'])
 @rota_protegida
 def atualizar_registro_pagamento(id):
     try:
@@ -346,7 +346,7 @@ def atualizar_registro_pagamento(id):
             {'erro': 'Erro inesperado ao atualizar registro de pagamento!'}), 500
 
 
-@registros_pagamento_bp.route('/registros-pagamento/<int:id>', methods=['DELETE'])
+@registros_pagamento_bp.route('/<int:id>', methods=['DELETE'])
 @rota_protegida
 def deletar_registro_pagamento(id):
     try:
