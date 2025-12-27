@@ -2975,3 +2975,108 @@
 [2025-12-27 20:27:06,761] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:27:06] "GET /passageiros/ HTTP/1.1" 200 -]
 [2025-12-27 20:27:06,761] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:27:06] "GET /passageiros/ HTTP/1.1" 200 -]
 [2025-12-27 20:27:06,761] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:27:06] "GET /passageiros/ HTTP/1.1" 200 -]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,408] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5002]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5004]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,409] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5003]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,410] [INFO] - [[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,421] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,422] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,427] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:13,430] [INFO] - [[33mPress CTRL+C to quit[0m]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,954] [INFO] - [Listando passageiros...]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,958] [INFO] - [Listagem de passageiros bem-sucedida.]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]
+[2025-12-27 20:31:15,964] [INFO] - [127.0.0.1 - - [27/Dec/2025 20:31:15] "GET /passageiros HTTP/1.1" 200 -]

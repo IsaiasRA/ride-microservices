@@ -810,15 +810,6 @@ def deletar_passageiro(id):
     except Exception as erro:
         logger.error(f'Erro inesperado ao deletar passageiro: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao deletar passageiro!'}), 500
-    
-@app1.errorhandler(RateLimitExceeded)
-def rate_limit_handler(e):
-    logger.warning(
-        f"RATE LIMIT excedido | IP={request.remote_addr} | rota={request.path}"
-    )
-    return jsonify({
-        'erro': 'Muitas requisições. Tente novamente mais tarde.'
-    }), 429
 
 
 register_erro_handlers(app1)
