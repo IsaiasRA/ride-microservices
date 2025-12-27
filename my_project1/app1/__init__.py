@@ -5,10 +5,13 @@ from app1.routes.trips import viagens_bp
 from app1.routes.payment_records import registros_pagamento_bp
 from app1.database import inicializador_banco
 from app1.error import register_erro_handlers
+from app1.brute_force import limiter
 
 
 def create_api1():
     app1 = Flask('API1')
+
+    limiter.init_app(app1)
 
     inicializador_banco()
 
@@ -22,6 +25,8 @@ def create_api1():
 def create_api2():
     app2 = Flask('API2')
 
+    limiter.init_app(app2)
+
     inicializador_banco()
 
     app2.register_blueprint(motoristas_bp, url_prefix='/motoristas')
@@ -34,6 +39,8 @@ def create_api2():
 def create_api3():
     app3 = Flask('API3')
 
+    limiter.init_app(app3)
+
     inicializador_banco()
 
     app3.register_blueprint(viagens_bp, url_prefix='/viagens')
@@ -45,6 +52,8 @@ def create_api3():
 
 def create_api4():
     app4 = Flask('API4')
+
+    limiter.init_app(app4)
 
     inicializador_banco()
 

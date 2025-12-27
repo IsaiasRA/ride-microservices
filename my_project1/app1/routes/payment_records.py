@@ -4,6 +4,7 @@ from app1.database import conexao
 from app1.error import tratamento_erro_requests
 from app1.validation import validar_json
 from app1.log import configurar_logging
+from app1.brute_force import limiter
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import logging
@@ -18,6 +19,7 @@ registros_pagamento_bp = Blueprint('registros-pagamento', __name__)
 
 
 @registros_pagamento_bp.route('/', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_registros_pagamento():
     try:
@@ -51,6 +53,7 @@ def listar_registros_pagamento():
 
 
 @registros_pagamento_bp.route('/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_registro_pagamento(id):
     try:
@@ -84,6 +87,7 @@ def buscar_registro_pagamento(id):
 
 
 @registros_pagamento_bp.route('/', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_pagamento():
     try:
@@ -212,6 +216,7 @@ def adicionar_pagamento():
 
 
 @registros_pagamento_bp.route('/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_registro_pagamento(id):
     try:
@@ -347,6 +352,7 @@ def atualizar_registro_pagamento(id):
 
 
 @registros_pagamento_bp.route('/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_registro_pagamento(id):
     try:

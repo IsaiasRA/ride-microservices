@@ -4,6 +4,7 @@ from app1.database import conexao
 from app1.error import tratamento_erro_requests
 from app1.validation import validar_json
 from app1.log import configurar_logging
+from app1.brute_force import limiter
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import logging
@@ -19,6 +20,7 @@ viagens_bp = Blueprint('viagens', __name__)
 
 
 @viagens_bp.route('/', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_viagens():
     try:
@@ -59,6 +61,7 @@ def listar_viagens():
 
 
 @viagens_bp.route('/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_viagem(id):
     try:
@@ -99,6 +102,7 @@ def buscar_viagem(id):
 
 
 @viagens_bp.route('/', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_viagem():
     try:
@@ -290,6 +294,7 @@ def adicionar_viagem():
 
 
 @viagens_bp.route('/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_viagens(id):
     try:
@@ -422,6 +427,7 @@ def atualizar_viagens(id):
 
 
 @viagens_bp.route('/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_viagem(id):
     try:
@@ -471,3 +477,4 @@ def deletar_viagem(id):
     except Exception as erro:
         logger.error(f'Erro inesperado ao deletar viagem: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao deletar viagem!'}), 500
+    

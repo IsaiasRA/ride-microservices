@@ -3,6 +3,7 @@ from app1.auth import rota_protegida
 from app1.database import conexao
 from app1.validation import validar_json
 from app1.log import configurar_logging
+from app1.brute_force import limiter
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import logging
@@ -17,6 +18,7 @@ motoristas_bp = Blueprint('motoristas', __name__)
 
 
 @motoristas_bp.route('/', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_motoristas():
     try:
@@ -52,6 +54,7 @@ def listar_motoristas():
 
 
 @motoristas_bp.route('/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_motorista(id):
     try:
@@ -87,6 +90,7 @@ def buscar_motorista(id):
 
 
 @motoristas_bp.route('/', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_motorista():
     try:
@@ -161,6 +165,7 @@ def adicionar_motorista():
 
 
 @motoristas_bp.route('/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_motorista(id):
     try:
@@ -250,6 +255,7 @@ def atualizar_motorista(id):
 
 
 @motoristas_bp.route('/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_motorista(id):
     try:

@@ -1,26 +1,35 @@
 from flask import Flask, jsonify, request
+from flask_limiter.errors import RateLimitExceeded
 from contextlib import closing, contextmanager
 from app1.error import (tratamento_erro_mysql,
                         register_erro_handlers,
                         tratamento_erro_requests)
 from app1.log import configurar_logging
 from app1.validation import validar_json
-from app1.auth import (SECRET_KEY, USUARIO, gerar_tokens,
-                       rota_protegida, validar_token)
+from app1.auth import (gerar_tokens, rota_protegida, validar_token,
+                       criar_usuario, refresh_valido, salvar_refresh,
+                       revogar_refresh, revogar_todos_refresh)
+from app1.brute_force import (ip_bloqueado, registrar_falha,
+                               limpar_falhas, limiter)
 from datetime import datetime, timedelta, timezone
 from werkzeug.exceptions import BadRequest
 from decimal import Decimal, InvalidOperation
 import threading
 import logging
 import requests
+import bcrypt
 import re
 import mysql.connector
 
 
-app1 = Flask('API1')
-
 configurar_logging()
 logger = logging.getLogger(__name__)
+
+
+app1 = Flask('API1')
+
+
+limiter.init_app(app1)
 
 
 @contextmanager
@@ -66,9 +75,42 @@ with criar_banco() as cursor:
             CREATE DATABASE IF NOT EXISTS meubanco
                 DEFAULT CHARSET utf8mb4
                 DEFAULT COLLATE utf8mb4_unicode_ci;''')
-
+    
 
 with conexao() as cursor:
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                usuario VARCHAR(100) NOT NULL UNIQUE,
+                senha_hash VARCHAR(255) NOT NULL,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                   
+                INDEX idx_usuario_u (usuario)
+            ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+        ''')
+    
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                user_id INT UNSIGNED NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                expires_at DATETIME NOT NULL,
+                revoked BOOLEAN DEFAULT FALSE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_refresh_user_id
+                   FOREIGN KEY (user_id)
+                   REFERENCES usuarios(id)
+                   ON DELETE CASCADE
+                   ON UPDATE RESTRICT,
+
+                INDEX idx_refresh_user_id (user_id),
+                INDEX idx_refresh_token (token_hash),
+                INDEX idx_refresh_expires (expires_at)
+            ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+        ''')
+
+
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS passageiros (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -88,7 +130,7 @@ with conexao() as cursor:
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE = InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            ) ENGINE = InnoDB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
         ''')
 
     cursor.execute(
@@ -96,6 +138,7 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_passa_nome ON passageiros(nome);')
+
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS motoristas (
@@ -113,7 +156,7 @@ with conexao() as cursor:
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+            ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
 
     cursor.execute(
@@ -126,6 +169,7 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_moto_ano_carro ON motoristas(ano_carro)')
+
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS viagens (
@@ -179,6 +223,7 @@ with conexao() as cursor:
         cursor.execute(
             'CREATE INDEX idx_viagens_nome_moto ON viagens(nome_motorista)')
 
+
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS registros_pagamento (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -214,6 +259,7 @@ with conexao() as cursor:
 
 
 @app1.route('/passageiros', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_passageiros():
     try:
@@ -252,6 +298,7 @@ def listar_passageiros():
 
 
 @app1.route('/passageiros/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_passageiro(id):
     try:
@@ -288,10 +335,72 @@ def buscar_passageiro(id):
         return jsonify({'erro': 'Erro inesperado ao buscar passageiros!'}), 500
 
 
-@app1.route('/login/<id_usuario>', methods=['POST'])
-def login(id_usuario):
+@app1.route('/register', methods=['POST'])
+@limiter.limit('3 per minute')
+def register():
+    try:
+        logger.info('Registrando usuário...')
+
+        dados = validar_json()
+
+        REGRAS = {
+            'usuario': lambda v: isinstance(v, str) and v.strip() != '',
+            'senha': lambda v: isinstance(v, str) and v.strip() != ''
+        }
+
+        faltando = [c for c in REGRAS if c not in dados]
+
+        if faltando:
+            logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
+            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
+        
+        for campo, regra in REGRAS.items():
+            try:
+                valor = str(dados[campo]).strip()
+
+                if not regra(valor):
+                    raise ValueError
+                
+                dados[campo] = valor
+            except Exception:
+                logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
+                return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
+            
+        with conexao() as cursor:
+            cursor.execute('SELECT id FROM usuarios WHERE usuario = %s',
+                           (dados['usuario'],))
+            
+            if cursor.fetchone():
+                logger.warning(f'Usuário existente.')
+                return jsonify({'erro': 'Usuário já existe!'}), 409
+            
+            criar_usuario(
+                cursor,
+                dados['usuario'],
+                dados['senha']
+            )
+            
+            logger.info('Usuário criado.')
+            return jsonify({'mensagem': 'Usuário criado com sucesso.'}), 201
+        
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao registrar usuário: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao registrar usuário!'}), 500
+
+
+@app1.route('/login', methods=['POST'])
+@limiter.limit('5 per minute')
+def login():
     try:
         logger.info('Gerando tokens...')
+
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+        if ip_bloqueado(ip):
+            logger.warning(f'IP bloqueado por brute force.')
+            return jsonify(
+                {'erro': 'Muitas tentativas de login. Tente novamente mais tarde'
+            }), 429
 
         dados = validar_json()
 
@@ -326,28 +435,56 @@ def login(id_usuario):
                     f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
-        if dados['usuario'] != USUARIO or dados['senha'] != SECRET_KEY:
-            logger.warning('Usuário e/ou senha inválido.')
-            return jsonify({'erro': 'Usuário e/ou senha inválido!'}), 400
+        with conexao() as cursor:
+            cursor.execute('''
+                SELECT id, senha_hash FROM usuarios
+                    WHERE usuario = %s''',
+                    (dados['usuario'],))
+            
+            usuario = cursor.fetchone()
 
-        tokens, status = gerar_tokens(id_usuario)
-        if status != 200:
-            return jsonify(tokens), status
+            if not usuario:
+                logger.warning(f'Usuário e/ou senha inválido.')
+                registrar_falha(ip)
+                return jsonify({'erro': 'Usuário e/ou senha inválido!'}), 401
+            
+            id_usuario_db, senha_hash = usuario
 
-        response = jsonify({
-            'access_token': tokens['access_token']
-        })
+            if not bcrypt.checkpw(
+                dados['senha'].encode(),
+                senha_hash.encode()
+            ):
+                logger.warning('Senha inválida.')
+                registrar_falha(ip)
+                return jsonify({'erro':'Usuário e/ou senha inválido!'}), 401
+            
+            limpar_falhas(ip)
 
-        response.set_cookie(
-            'refresh_token',
-            tokens['refresh_token'],
-            httponly=True,
-            secure=False,
-            samesite='Lax',
-            max_age=60 * 60 * 24 * 7
-        )
+            tokens, status = gerar_tokens(id_usuario_db)
+            if status != 200:
+                return jsonify(tokens), status
 
-        return response, 200
+            salvar_refresh(
+                cursor,
+                id_usuario_db,
+                tokens['refresh_token'],
+                tokens['refresh_exp']
+            )
+
+            response = jsonify({
+                'access_token': tokens['access_token']
+            })
+
+            response.set_cookie(
+                'refresh_token',
+                tokens['refresh_token'],
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=60 * 60 * 24 * 7
+            )
+
+            return response, 200
 
     except BadRequest:
         logger.warning(
@@ -360,6 +497,7 @@ def login(id_usuario):
 
 
 @app1.route('/refresh', methods=['POST'])
+@limiter.limit('10 per minute')
 def refresh():
     try:
         refresh_token = request.cookies.get('refresh_token')
@@ -370,31 +508,103 @@ def refresh():
 
         payload, status = validar_token(refresh_token, token_type='refresh')
         if status != 200:
-            return jsonify(payload), status
+            response = jsonify(payload)
+            response.set_cookie(
+                'refresh_token',
+                '',
+                expires=0,
+                httponly=True,
+                secure=True,
+                samesite='Lax'
+            )
+            return response, status
+        
 
-        novos_tokens, _ = gerar_tokens(payload['sub'])
+        with conexao() as cursor:
+            registro = refresh_valido(cursor, refresh_token)
 
-        response = jsonify({
-            'access_token': novos_tokens['access_token']
-        })
+            if not registro:
+                logger.warning(f'Refresh token revogado ou inexistente.')
+                response = jsonify({'erro': 'Refresh token inválido ao revogar!'})
 
-        response.set_cookie(
-            'refresh_token',
-            novos_tokens['refresh_token'],
-            httponly=True,
-            secure=False,
-            samesite='Lax',
-            max_age=60 * 60 * 24 * 7
-        )
+                response.set_cookie(
+                    'refresh_token',
+                    '',
+                    expires=0,
+                    httponly=True,
+                    secure=True,
+                    samesite='Lax'
+                )
 
-        return response, 200
+                return response, 401
+            
+            revogar_refresh(cursor, refresh_token)
+
+            novos_tokens, _ = gerar_tokens(payload['sub'])
+
+            salvar_refresh(
+                cursor,
+                payload['sub'],
+                novos_tokens['refresh_token'],
+                novos_tokens['refresh_exp']
+            )
+
+            response = jsonify({
+                'access_token': novos_tokens['access_token']
+            })
+
+            response.set_cookie(
+                'refresh_token',
+                novos_tokens['refresh_token'],
+                httponly=True,
+                secure=True,
+                samesite='Lax',
+                max_age=60 * 60 * 24 * 7
+            )
+
+            return response, 200
 
     except Exception as erro:
         logger.error(f'Erro inesperado ao renovar token: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao renovar token!'}), 500
 
 
+@app1.route('/logout', methods=['POST'])
+@limiter.limit('10 per minute')
+def logout():
+    try:
+        refresh_token = request.cookies.get('refresh_token')
+        
+        if not refresh_token:
+            logger.warning('Refresh token não enviado.')
+            return jsonify({'erro':'Refresh token não enviado!'}), 401
+
+        payload, status =  validar_token(refresh_token, token_type='refresh')
+
+        if status == 200:
+            with conexao() as cursor:
+                revogar_todos_refresh(cursor, payload['sub'])
+            
+        response = jsonify({'mensagem': 'Logout realizado com sucesso!'})
+
+        response.set_cookie(
+            'refresh_token',
+            '',
+            expires=0,
+            httponly=True,
+            secure=True,
+            samesite='Lax'
+        )
+
+        return response, 200
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado no logout: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado no logout!'}), 500
+
+
 @app1.route('/passageiros', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_passageiro():
     try:
@@ -491,6 +701,7 @@ def adicionar_passageiro():
 
 
 @app1.route('/passageiros/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_passageiro(id):
     try:
@@ -583,6 +794,7 @@ def atualizar_passageiro(id):
 
 
 @app1.route('/passageiros/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_passageiro(id):
     try:
@@ -598,6 +810,15 @@ def deletar_passageiro(id):
     except Exception as erro:
         logger.error(f'Erro inesperado ao deletar passageiro: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao deletar passageiro!'}), 500
+    
+@app1.errorhandler(RateLimitExceeded)
+def rate_limit_handler(e):
+    logger.warning(
+        f"RATE LIMIT excedido | IP={request.remote_addr} | rota={request.path}"
+    )
+    return jsonify({
+        'erro': 'Muitas requisições. Tente novamente mais tarde.'
+    }), 429
 
 
 register_erro_handlers(app1)
@@ -607,6 +828,7 @@ app2 = Flask('API2')
 
 
 @app2.route('/motoristas', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_motoristas():
     try:
@@ -642,6 +864,7 @@ def listar_motoristas():
 
 
 @app2.route('/motoristas/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_motorista(id):
     try:
@@ -677,6 +900,7 @@ def buscar_motorista(id):
 
 
 @app2.route('/motoristas', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_motorista():
     try:
@@ -751,6 +975,7 @@ def adicionar_motorista():
 
 
 @app2.route('/motoristas/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_motorista(id):
     try:
@@ -837,6 +1062,7 @@ def atualizar_motorista(id):
 
 
 @app2.route('/motoristas/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_motorista(id):
     try:
@@ -862,6 +1088,7 @@ app3 = Flask('API3')
 
 
 @app3.route('/viagens', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_viagens():
     try:
@@ -902,6 +1129,7 @@ def listar_viagens():
 
 
 @app3.route('/viagens/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_viagem(id):
     try:
@@ -942,6 +1170,7 @@ def buscar_viagem(id):
 
 
 @app3.route('/viagens', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_viagem():
     try:
@@ -1133,6 +1362,7 @@ def adicionar_viagem():
 
 
 @app3.route('/viagens/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_viagens(id):
     try:
@@ -1265,6 +1495,7 @@ def atualizar_viagens(id):
 
 
 @app3.route('/viagens/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_viagem(id):
     try:
@@ -1316,10 +1547,14 @@ def deletar_viagem(id):
         return jsonify({'erro': 'Erro inesperado ao deletar viagem!'}), 500
 
 
+register_erro_handlers(app3)
+
+
 app4 = Flask('API4')
 
 
 @app4.route('/registros-pagamento', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def listar_registros_pagamento():
     try:
@@ -1353,6 +1588,7 @@ def listar_registros_pagamento():
 
 
 @app4.route('/registros-pagamento/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def buscar_registro_pagamento(id):
     try:
@@ -1386,6 +1622,7 @@ def buscar_registro_pagamento(id):
 
 
 @app4.route('/registros-pagamento', methods=['POST'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def adicionar_pagamento():
     try:
@@ -1514,6 +1751,7 @@ def adicionar_pagamento():
 
 
 @app4.route('/registros-pagamento/<int:id>', methods=['PUT'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_registro_pagamento(id):
     try:
@@ -1649,6 +1887,7 @@ def atualizar_registro_pagamento(id):
 
 
 @app4.route('/registros-pagamento/<int:id>', methods=['DELETE'])
+@limiter.limit('100 per hour')
 @rota_protegida
 def deletar_registro_pagamento(id):
     try:

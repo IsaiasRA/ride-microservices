@@ -1,4 +1,5 @@
-from flask import jsonify
+from flask import jsonify, request
+from flask_limiter.errors import RateLimitExceeded
 from mysql.connector import errors
 from app1.log import configurar_logging
 import logging
@@ -103,6 +104,15 @@ def register_erro_handlers(app):
         logger.warning(f'Rota não autorizada: {str(erro)}')
         return jsonify({'erro': 'Rota não autorizada!'}), 401
     
+    @app.errorhandler(RateLimitExceeded)
+    def rate_limit_handler(e):
+        logger.warning(
+            f"RATE LIMIT excedido | IP={request.remote_addr} | rota={request.path}"
+        )
+        return jsonify({
+            'erro': 'Muitas requisições. Tente novamente mais tarde.'
+        }), 429
+    
     @app.errorhandler(400)
     def dados_inválidos(erro):
         logger.warning(f'Dados inválidos na rota: {str(erro)}')
@@ -122,3 +132,4 @@ def register_erro_handlers(app):
     def erro_interno(erro):
         logger.error(f'Erro inesperado ao acessar a rota: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao acessar a rota!'}), 500
+    
