@@ -1,5 +1,4 @@
 from flask import Flask, jsonify, request
-from flask_limiter.errors import RateLimitExceeded
 from contextlib import closing, contextmanager
 from app1.error import (tratamento_erro_mysql,
                         register_erro_handlers,
