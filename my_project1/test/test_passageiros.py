@@ -16,7 +16,7 @@ def test_listar_passageiros_vazio(client_app1, auth_header, monkeypatch):
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.get('/passageiros', headers=auth_header)
     assert resp.status_code == 200
@@ -36,7 +36,7 @@ def test_buscar_passageiro_por_id_sucesso(client_app1, auth_header, monkeypatch)
         cursor_holder['cursor'] = cursor
         yield cursor
 
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.get(
         '/passageiros/1',
@@ -64,7 +64,7 @@ def test_buscar_passageiro_por_id_inexistente(client_app1, auth_header, monkeypa
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.get(
         '/passageiros/999',
@@ -87,7 +87,7 @@ def test_adicionar_passageiro_sucesso(client_app1, auth_header, monkeypatch):
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.post(
         '/passageiros',
@@ -125,7 +125,7 @@ def test_atualizar_passageiro_sucesso(client_app1, auth_header, monkeypatch):
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.put(
         '/passageiros/1',
@@ -153,7 +153,7 @@ def test_atualizar_passageiro_inexistente(client_app1, auth_header, monkeypatch)
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.put(
         '/passageiros/999',
@@ -181,7 +181,7 @@ def test_deletar_passageiro_sucesso(client_app1, auth_header, monkeypatch):
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.delete(
         '/passageiros/1',
@@ -205,7 +205,7 @@ def test_deletar_passageiro_inexistente(client_app1, auth_header, monkeypatch):
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
+    monkeypatch.setattr('main.conexao', fake_conexao)
 
     resp = client_app1.delete(
         '/passageiros/999',
