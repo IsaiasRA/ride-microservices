@@ -1,13 +1,9 @@
 import pytest
 from unittest.mock import patch
-from app1.main import (app1, app2,
+from test_main import (app1, app2,
                         app3, app4)
 from test.test_database import fake_conexao
 
-
-@pytest.fixture(autouse=True, scope='session')
-def init_db(setup_fake_db):
-    pass
 
 
 @pytest.fixture
@@ -38,14 +34,14 @@ def auth_header():
 @pytest.fixture(autouse=True)
 def mock_db(monkeypatch):
     monkeypatch.setattr(
-        'app1.main.conexao',
+        'test_main.conexao',
         fake_conexao
     )
 
 
 @pytest.fixture(autouse=True)
 def mock_jwt():
-    with patch('app1.main.validar_token') as mock:
+    with patch('app1.auth.validar_token') as mock:
         mock.return_value = (
             {'sub': 1,
             'type': 'access',

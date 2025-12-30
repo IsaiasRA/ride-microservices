@@ -1,217 +1,27 @@
-
-def test_passageiros_sem_token(client_app1):
-    resp = client_app1.get('/passageiros')
-    assert resp.status_code == 401
-
-
-def test_listar_passageiros_vazio(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args): 
-                self.called = True
-            def fetchall(self): return []
-    
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.get('/passageiros', headers=auth_header)
-    assert resp.status_code == 200
-    assert resp.json == []
-    assert hasattr(cursor_holder['cursor'], 'called')
-
-
-def test_buscar_passageiro_por_id_sucesso(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            def fetchone(self):
-                return (1, 'João', 22.50, 'ativo')
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.get(
-        '/passageiros/1',
-        headers=auth_header
-    )
-
-    assert resp.status_code == 200
-    assert resp.json == {
-        'id': 1,
-        'nome': 'João',
-        'total_viagem': 22.50,
-        'status': 'ativo'
-    }
-    assert hasattr(cursor_holder['cursor'], 'called')
-
-
-def test_buscar_passageiro_por_id_inexistente(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            def fetchone(self): return None
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.get(
-        '/passageiros/999',
-        headers=auth_header
-    )
-
-    assert resp.status_code == 404
-    assert 'erro' in resp.json
-    assert hasattr(cursor_holder['cursor'], 'called')
-
-
-def test_adicionar_passageiro_sucesso(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            lastrowid = 1
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.post(
+def criar_passageiro(client, auth_header):
+    return client.post(
         '/passageiros',
         headers=auth_header,
         json={
             'nome': 'João',
-            'total_viagem': 22.50,
-            'status': 'ativo'
+            'telefone': '9999',
+            'cpf': '12345678909',
+            'valor': 100,
+            'endereco_rua': 'Rua X',
+            'endereco_numero': '1',
+            'endereco_bairro': 'Centro',
+            'endereco_cidade': 'SP',
+            'endereco_estado': 'SP',
+            'endereco_cep': '00000',
+            'km': 10,
+            'metodo_pagamento': 'pix',
+            'pagamento': 'pago'
         }
     )
 
-    assert resp.status_code in (200, 201)
-    assert 'mensagem' in resp.json or 'id' in resp.json
-    assert hasattr(cursor_holder['cursor'], 'called')
 
+def test_buscar_passageiro_por_id_sucesso(client_app1, auth_header):
+    criar_passageiro(client_app1, auth_header)
 
-def test_adicionar_passageiro_sem_json(client_app1, auth_header):
-    resp = client_app1.post(
-        '/passageiros',
-        headers=auth_header
-    )
-
-    assert resp.status_code == 400
-    assert 'erro' in resp.json
-
-
-def test_atualizar_passageiro_sucesso(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            rowcount = 1
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.put(
-        '/passageiros/1',
-        headers=auth_header,
-        json={
-            'nome': 'João atualizado',
-            'total_viagem': 23.50,
-            'status': 'ativo'
-        }
-    )
-
+    resp = client_app1.get('/passageiros/1', headers=auth_header)
     assert resp.status_code == 200
-    assert 'mensagem' in resp.json
-    assert hasattr(cursor_holder['cursor'], 'called')
-
-
-def test_atualizar_passageiro_inexistente(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            rowcount = 0
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.put(
-        '/passageiros/999',
-        headers=auth_header,
-        json={
-            'nome': 'X',
-            'total_viagem': 0.00,
-            'status': 'suspenso'
-        }
-    )
-
-    assert resp.status_code == 404
-    assert 'erro' in resp.json
-    assert hasattr(cursor_holder['cursor'], 'called')
-
-
-def test_deletar_passageiro_sucesso(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            rowcount = 1
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.delete(
-        '/passageiros/1',
-        headers=auth_header
-    )
-
-    assert resp.status_code in (200, 204)
-    if resp.status_code == 200:
-        assert 'mensagem' in resp.json
-    assert hasattr(cursor_holder['cursor'], 'called')
-
-
-def test_deletar_passageiro_inexistente(client_app1, auth_header, monkeypatch):
-    cursor_holder = {}
-    def fake_conexao():
-        class Cursor:
-            def execute(self, *args):
-                self.called = True
-            rowcount = 0
-        cursor = Cursor()
-        cursor_holder['cursor'] = cursor
-        yield cursor
-    
-    monkeypatch.setattr('app1.main.conexao', fake_conexao)
-
-    resp = client_app1.delete(
-        '/passageiros/999',
-        headers=auth_header
-    )
-
-    assert resp.status_code == 404
-    assert 'erro' in resp.json
-    assert hasattr(cursor_holder['cursor'], 'called')

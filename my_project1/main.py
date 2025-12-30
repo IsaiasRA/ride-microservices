@@ -1921,3 +1921,6 @@ def main():
     
 if __name__ == '__main__':
     main()
+
+
+print(app1.url_map)

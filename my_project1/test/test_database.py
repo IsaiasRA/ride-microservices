@@ -1,80 +1,107 @@
 from contextlib import contextmanager, closing
 import sqlite3
-import pytest
 
 
 @contextmanager
 def fake_conexao():
     with closing(sqlite3.connect('test.db')) as con:
+        con.row_factory = sqlite3.Row
         cursor = con.cursor()
         try:
             yield cursor
             con.commit()
-        except Exception:
+        except:
             con.rollback()
             raise
 
-@pytest.fixture(scope='session')
-def setup_fake_db():
-    with fake_conexao() as cursor:
-        cursor.execute('''
-                CREATE TABLE IF NOT EXISTS usuarios (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    usuario TEXT NOT NULL UNIQUE,
-                    senha_hash TEXT NOT NULL,
-                    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-                    );
-                ''')
-        
-        cursor.execute('''
-                CREATE TABLE IF NOT EXISTS passageiros (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nome TEXT NOT NULL,
-                    total_viagem REAL NOT NULL CHECK(total_viagem > 0),
-                    metodo_pagamento TEXT NOT NULL CHECK(
-                        metodo_pagamento IN ('pix', 'credito', 'debito', 'boleto')),
-                    pagamento TEXT NOT NULL CHECK(
-                    pagamento IN ('pago', 'pendente', 'cancelado'))
-                    );
-                ''')
-        cursor.execute('''
-                CREATE TABLE IF NOT EXISTS motoristas (
-                    id INTEGER AUTOINCREMENT PRIMARY KEY,
-                    nome TEXT NOT NULL,
-                    valor_passagem REAL NOT NULL CHECK(valor_passagem > 0),
-                    status TEXT NOT NULL CHECK(
-                    status IN ('ativo', 'suspenso', 'bloqueado'))
-                    );
-                ''')
-        cursor.execute('''
-                CREATE TABLE IF NOT EXISTS viagens (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id_passageiro INTEGER NOT NULL,
-                    id_motorista INTEGER NOT NULL,
-                    nome_passageiro TEXT NOT NULL,
-                    nome_motorista TEXT NOT NULL,
-                    valor_passagem REAL NOT NULL CHECK(valor_passagem > 0),
-                    total_viagem REAL NOT NULL CHECK(total_viagem > 0),
-                    metodo_pagamento TEXT NOT NULL CHECK(
-                    metodo_pagamento IN ('pix', 'credito', 'debito', 'boleto')),
-                    pagamento TEXT NOT NULL CHECK(
-                    pagamento IN ('pago', 'pendente', 'cancelado')),
-                    status TEXT NOT NULL CHECK(status IN ('confirmada', 'cancelada')),
-                    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-                );
-            ''')
-        cursor.execute('''
-                CREATE TABLE IF NOT EXISTS registros_pagamento (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nome_passageiro TEXT NOT NULL,
-                    nome_motorista TEXT NOT NULL,
-                    total_viagem REAL NOT NULL CHECK(total_viagem > 0),
-                    metodo_pagamento TEXT NOT NULL CHECK(
-                    metodo_pagamento IN ('pix', 'credito', 'debito', 'boleto')),
-                    pagamento TEXT NOT NULL CHECK(
-                    pagamento IN ('pago', 'pendente', 'cancelado')),
-                    status TEXT NOT NULL CHECK(
-                    status IN ('confirmado', 'cancelado'))
-                );
-            ''')
+
+with fake_conexao() as cursor:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario TEXT,
+            senha_hash TEXT
+        );
+    """)
+
+    cursor.execute("""
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                token_hash TEXT,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS passageiros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT,
+            telefone TEXT,
+            cpf TEXT,
+            valor REAL,
+            endereco_rua TEXT,
+            endereco_numero TEXT,
+            endereco_bairro TEXT,
+            endereco_cidade TEXT,
+            endereco_estado TEXT,
+            endereco_cep TEXT,
+            km INTEGER,
+            metodo_pagamento TEXT,
+            pagamento TEXT,
+            atualizado_em TEXT
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS motoristas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT,
+            status TEXT,
+            telefone TEXT,
+            cnh TEXT,
+            placa TEXT,
+            modelo_carro TEXT,
+            ano_carro INTEGER,
+            atualizado_em TEXT
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS viagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_passageiro INTEGER,
+            id_motorista INTEGER,
+            nome_passageiro TEXT,
+            nome_motorista TEXT,
+            endereco_rua TEXT,
+            endereco_numero TEXT,
+            endereco_bairro TEXT,
+            endereco_cidade TEXT,
+            endereco_estado TEXT,
+            endereco_cep TEXT,
+            valor_por_km REAL,
+            total_viagem REAL,
+            metodo_pagamento TEXT,
+            pagamento TEXT,
+            status TEXT,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS registros_pagamento (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_viagem INTEGER,
+            remetente TEXT,
+            recebedor TEXT,
+            metodo_pagamento TEXT
+            pagamento TEXT,
+            status TEXT,
+            valor_viagem REAL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
