@@ -30,7 +30,7 @@ def test_buscar_motoristas_por_id_sucesso(client_app2, auth_header, monkeypatch)
             def execute(self, *args):
                 self.called = True
             def fetchone(self):
-                return (1, 'Carlos', 35, 'M', 'ativo')
+                return (1, 'Carlos', 2.50, 'ativo')
         cursor = Cursor()
         cursor_holder['cursor'] = cursor
         yield cursor
@@ -45,8 +45,7 @@ def test_buscar_motoristas_por_id_sucesso(client_app2, auth_header, monkeypatch)
     assert resp.json == {
         'id': 1,
         'nome': 'Carlos',
-        'idade': 35,
-        'sexo': 'M',
+        'valor_passagem': 2.50,
         'status': 'ativo'
     }
     assert hasattr(cursor_holder['cursor'], 'called')
@@ -93,8 +92,7 @@ def test_adicionar_motorista_sucesso(client_app2, auth_header, monkeypatch):
         headers=auth_header,
         json={
             'nome': 'Carlos',
-            'idade': 35,
-            'sexo': 'M',
+            'valor_passagem': 2.50,
             'status': 'ativo'
         }
     )
@@ -132,8 +130,7 @@ def test_atualizar_motorista_sucesso(client_app2, auth_header, monkeypatch):
         headers=auth_header,
         json={
             'nome': 'Carlos atualizado',
-            'idade': 35,
-            'sexo': 'M',
+            'valor_passagem': 3.50,
             'status': 'ativo'
         }
     )
@@ -161,8 +158,7 @@ def test_atualizar_motorista_inexistente(client_app2, auth_header, monkeypatch):
         headers=auth_header,
         json={
             'nome': 'X',
-            'idade': 30,
-            'sexo': 'M',
+            'valor_passagem': 3.50,
             'status': 'ativo'
         }
     )

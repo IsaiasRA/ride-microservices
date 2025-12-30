@@ -16,9 +16,8 @@ def test_listar_viagens(client_app3, auth_header, monkeypatch):
             def execute(self, *args):
                 self.called = True
             def fetchall(self):
-                return [(1, 1, 1, 'João', 'Carlos',  'Rua A', '10',
-                         'Centro', 'SP', 'SP', '45600-900', 2.5, 10, 'pix',
-                         'pago', 'confirmada', 'now', 'now')]
+                return [(1, 1, 1, 'João', 10, 'pix', 'pago',
+                         'confirmada', 'Carlos', 2.50, 'now', 'now')]
         cursor = Cursor()
         cursor_holder['cursor'] = cursor
         yield cursor
@@ -42,9 +41,8 @@ def test_buscar_viagens_por_id_sucesso(client_app3, auth_header, monkeypatch):
             def execute(self, *args):
                 self.called = True
             def fetchone(self):
-                return (1, 1, 1, 'João', 'Carlos', 'Rua A',
-                        '10', 'Centro', 'SP', 'SP', '45600-900',
-                        2.50, 10, 'pix', 'pago', 'confirmada', 'now', 'now')
+                return (1, 1, 1, 'João', 10, 'pix', 'pago',
+                         'confirmada', 'Carlos', 2.50, 'now', 'now')
         cursor = Cursor()
         cursor_holder['cursor'] = cursor
         yield cursor
@@ -89,15 +87,11 @@ def test_adicionar_viagem_sucesso(client_app3, auth_header, monkeypatch):
     fake_pass = Mock()
     fake_pass.json.return_value = {
         'nome': 'João',
-        'endereco_rua': 'Rua A',
-        'endereco_numero': '10',
-        'endereco_bairro': 'Centro',
-        'endereco_cidade': 'SP',
-        'endereco_estado': 'SP',
-        'endereco_cep': '45600-900',
-        'km': 5,
+        'total_viagem': 20,
         'metodo_pagamento': 'pix',
-        'pagamento': 'pago'
+        'pagamento': 'pago',
+        'status': 'confirmada'
+
     }
 
     fake_pass.raise_for_status = lambda: None
@@ -105,13 +99,14 @@ def test_adicionar_viagem_sucesso(client_app3, auth_header, monkeypatch):
     fake_moto = Mock()
     fake_moto.json.return_value = {
         'nome': 'Carlos',
-        'valor_passagem': 2.50,
-        'status': 'ativo'
+        'valor_total': 2.50,
+        'criado_em': 'now',
+        'atualizado_em': 'now'
     }
     fake_moto.raise_for_status = lambda: None
 
     monkeypatch.setattr(
-        'main.requests.get',
+        'app1.main.requests.get',
         lambda url, **k: fake_pass if 'passageiros' in url else fake_moto
     )
 

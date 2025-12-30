@@ -16,8 +16,8 @@ def test_listar_pagamentos(client_app4, auth_header, monkeypatch):
             def execute(self, *args):
                 self.called = True
             def fetchall(self):
-                return [(1, 'João', 'Carlos',
-                        'pix', 'pago', 'confirmada', 20)]
+                return [(1, 'João', 'Carlos', 20,
+                        'pix', 'pago', 'confirmada')]
         cursor = Cursor()
         cursor_holder['cursor'] = cursor
         yield cursor
@@ -42,8 +42,8 @@ def test_buscar_pagamento_por_id_sucesso(client_app4, auth_header, monkeypatch):
             def execute(self, *args):
                 self.called = True
             def fetchone(self):
-                return (1, 'João', 'Carlos',
-                        'pix', 'pago', 'confirmada', 20)
+                return (1, 'João', 'Carlos', 20,
+                        'pix', 'pago', 'confirmada')
         cursor = Cursor()
         cursor_holder['cursor'] = cursor
         yield cursor
@@ -89,10 +89,10 @@ def test_adicionar_pagamento_sucesso(client_app4, auth_header, monkeypatch):
     fake_resp.json.return_value = {
         'nome_passageiro': 'João',
         'nome_motorista': 'Carlos',
+        'total_viagem': 20,
         'metodo_pagamento': 'pix',
         'pagamento': 'pago',
-        'status': 'confirmada',
-        'total_viagem': 20
+        'status': 'confirmado'
     }
     fake_resp.raise_for_status = lambda: None
 
@@ -109,7 +109,7 @@ def test_adicionar_pagamento_sucesso(client_app4, auth_header, monkeypatch):
         cursor_holder['cursor'] = cursor
         yield cursor
     
-    monkeypatch.setattr('main.conexao', fake_conexao)
+    monkeypatch.setattr('app1.main.conexao', fake_conexao)
 
     resp = client_app4.post(
         '/registros-pagamento',
