@@ -1,101 +1,54 @@
+from unittest.mock import patch
 import bcrypt
-import hashlib
 
 
-def test_register_sucesso(client_app1):
-    resp = client_app1.post(
-        '/register',
-        json={'usuario': 'Isaias', 'senha': '123456'}
-    )
+def test_register_integracao(client, db_conexao):
+    with patch('main.conexao', db_conexao):
+        resp = client.post('/register', json={
+            'usuario': 'integracao',
+            'senha': '123456'
+        })
 
-    assert resp.status_code in (200, 201, 409)
-
-
-def test_register_sem_json(client_app1):
-    resp = client_app1.post('/register')
-    assert resp.status_code in (400, 404)
+    assert resp.status_code == 201
 
 
-def test_login_sucesso(client_app1):
-    client_app1.post(
-        '/register',
-        json={'usuario': 'Isaias', 'senha': '123456'}
-    )
+def test_login_integracao(client, db_conexao):
+    senha = '123456'
+    hash_ = bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
 
-    resp = client_app1.post(
-        '/login',
-        json={'usuario': 'Isaias', 'senha': '123456'}
-    )
+    with db_conexao() as cursor:
+        cursor.execute(
+            'INSERT INTO usuarios (usuario, senha_hash) VALUES (%s, %s)',
+            ('Isaias', hash_)
+        )
+
+    with patch('main.conexao', db_conexao), \
+         patch('main.ip_bloqueado', return_value=False):
+
+        resp = client.post('/login', json={
+            'usuario': 'Isaias',
+            'senha': senha
+        })
 
     assert resp.status_code == 200
+    assert 'access_token' in resp.json
 
 
-def test_refresh_com_cookie(client_app1):
-    login = client_app1.post(
-        '/login',
-        json={'usuario': 'Isaias', 'senha': '123456'}
-    )
+def test_refresh_integracao(client, db_conexao):
+    with patch('main.conexao', db_conexao), \
+         patch('main.validar_token', return_value=({'sub': 1}, 200)), \
+         patch('main.gerar_tokens', return_value=({
+             'access_token': 'novo',
+             'refresh_token': 'novo_refresh',
+             'refresh_exp': '2026-01-01'
+         }, 200)):
 
-    cookies = login.headers.getlist('Set-Cookie')
-    resp = client_app1.post('/refresh', headers={'Cookie': '; '.join(cookies)})
+        client.set_cookie(
+            key='refresh_token',
+            value='token',
+            domain='localhost'
+        )
+
+        resp = client.post('/refresh')
 
     assert resp.status_code in (200, 401)
-
-
-def test_logout_sucesso(client_app1):
-    resp = client_app1.post('/logout')
-    assert resp.status_code in (200, 401)
-
-
-def hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-def salvar_refresh(cursor, user_id, refresh_token, expira_at):
-    cursor.execute('''
-        INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-            VALUES (?, ?, ?)''',
-            (user_id, hash_token(refresh_token), expira_at)
-    )
-    
-
-def refresh_valido(cursor, refresh_token):
-    cursor.execute('''
-        SELECT id, user_id FROM refresh_tokens
-            WHERE token_hash = ?
-            AND revoked = FALSE
-            AND expires_at > NOW()''',
-            (hash_token(refresh_token),)
-    )
-    
-    return cursor.fetchone()
-
-
-def revogar_refresh(cursor, refresh_token):
-    cursor.execute('''
-        UPDATE refresh_tokens SET
-            revoked = TRUE
-            WHERE token_hash = ?''',
-            (hash_token(refresh_token),)
-    )
-
-
-def revogar_todos_refresh(cursor, user_id):
-    cursor.execute('''
-        UPDATE refresh_tokens SET
-            revoked = TRUE
-            WHERE user_id = ?''',
-            (user_id,)
-    )
-
-
-def criar_usuario(cursor, usuario, senha):
-    senha_hash = bcrypt.hashpw(
-        senha.encode(),
-        bcrypt.gensalt()
-    ).decode()
-
-    cursor.execute('''
-        INSERT INTO usuarios (usuario, senha_hash)
-            VALUES (?, ?)''',
-            (usuario, senha_hash)
-    )

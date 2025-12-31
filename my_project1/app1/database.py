@@ -51,6 +51,39 @@ def inicializador_banco():
 
     with conexao() as cursor:
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                usuario VARCHAR(100) NOT NULL UNIQUE,
+                senha_hash VARCHAR(255) NOT NULL,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                   
+                INDEX idx_usuario_u (usuario)
+            ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+        ''')
+    
+
+        cursor.execute('''
+                CREATE TABLE IF NOT EXISTS refresh_tokens (
+                    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                    user_id INT UNSIGNED NOT NULL,
+                    token_hash CHAR(64) NOT NULL UNIQUE,
+                    expires_at DATETIME NOT NULL,
+                    revoked BOOLEAN DEFAULT FALSE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT fk_refresh_user_id
+                    FOREIGN KEY (user_id)
+                    REFERENCES usuarios(id)
+                    ON DELETE CASCADE
+                    ON UPDATE RESTRICT,
+
+                    INDEX idx_refresh_user_id (user_id),
+                    INDEX idx_refresh_token (token_hash),
+                    INDEX idx_refresh_expires (expires_at)
+                ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+            ''')
+        
+
+        cursor.execute('''
                 CREATE TABLE IF NOT EXISTS passageiros (
                     id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                     nome VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(nome)) > 0),
@@ -77,6 +110,7 @@ def inicializador_banco():
         if not cursor.fetchone():
             cursor.execute(
                 'CREATE INDEX idx_passa_nome ON passageiros(nome);')
+
 
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS motoristas (
@@ -107,6 +141,7 @@ def inicializador_banco():
         if not cursor.fetchone():
             cursor.execute(
                 'CREATE INDEX idx_moto_ano_carro ON motoristas(ano_carro)')
+
 
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS viagens (
@@ -159,6 +194,7 @@ def inicializador_banco():
         if not cursor.fetchone():
             cursor.execute(
                 'CREATE INDEX idx_viagens_nome_moto ON viagens(nome_motorista)')
+
 
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS registros_pagamento (

@@ -1,107 +1,79 @@
 from contextlib import contextmanager, closing
-import sqlite3
+from app1.error import tratamento_erro_mysql
+import mysql.connector
+
+
+@contextmanager
+def criar_banco_fake():
+    with closing(mysql.connector.connect(
+        host='127.0.0.1',
+        user='root',
+        password=''
+    )) as con:
+        try:
+            cursor = con.cursor()
+            yield cursor
+            con.commit()
+        except Exception as erro:
+            con.rollback()
+            tratamento_erro_mysql(erro)
+            raise
+
+
+def init_test_db():
+    with criar_banco_fake() as cursor:
+        cursor.execute('''
+            CREATE DATABASE IF NOT EXISTS test
+                DEFAULT CHARSET utf8mb4
+                DEFAULT COLLATE utf8mb4_unicode_ci;
+        ''')
 
 
 @contextmanager
 def fake_conexao():
-    with closing(sqlite3.connect('test.db')) as con:
-        con.row_factory = sqlite3.Row
-        cursor = con.cursor()
+    with closing(mysql.connector.connect(
+        host='127.0.0.1',
+        user='root',
+        password='',
+        autocommit=False,
+        database='test'
+    )) as con:
         try:
+            cursor = con.cursor()
             yield cursor
             con.commit()
-        except:
+        except Exception as erro:
             con.rollback()
+            tratamento_erro_mysql(erro)
             raise
 
 
-with fake_conexao() as cursor:
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario TEXT,
-            senha_hash TEXT
-        );
-    """)
+def criar_tabelas():
+    with fake_conexao() as cursor:
+        cursor.execute('DELETE FROM refresh_tokens')
+        cursor.execute('DELETE FROM usuarios')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                usuario VARCHAR(100) NOT NULL UNIQUE,
+                senha_hash VARCHAR(255) NOT NULL,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_usuario_u (usuario)
+        ) ENGINE=InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
 
-    cursor.execute("""
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS refresh_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                token_hash TEXT,
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS passageiros (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT,
-            telefone TEXT,
-            cpf TEXT,
-            valor REAL,
-            endereco_rua TEXT,
-            endereco_numero TEXT,
-            endereco_bairro TEXT,
-            endereco_cidade TEXT,
-            endereco_estado TEXT,
-            endereco_cep TEXT,
-            km INTEGER,
-            metodo_pagamento TEXT,
-            pagamento TEXT,
-            atualizado_em TEXT
-        );
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS motoristas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT,
-            status TEXT,
-            telefone TEXT,
-            cnh TEXT,
-            placa TEXT,
-            modelo_carro TEXT,
-            ano_carro INTEGER,
-            atualizado_em TEXT
-        );
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS viagens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_passageiro INTEGER,
-            id_motorista INTEGER,
-            nome_passageiro TEXT,
-            nome_motorista TEXT,
-            endereco_rua TEXT,
-            endereco_numero TEXT,
-            endereco_bairro TEXT,
-            endereco_cidade TEXT,
-            endereco_estado TEXT,
-            endereco_cep TEXT,
-            valor_por_km REAL,
-            total_viagem REAL,
-            metodo_pagamento TEXT,
-            pagamento TEXT,
-            status TEXT,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS registros_pagamento (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_viagem INTEGER,
-            remetente TEXT,
-            recebedor TEXT,
-            metodo_pagamento TEXT
-            pagamento TEXT,
-            status TEXT,
-            valor_viagem REAL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                user_id INT UNSIGNED NOT NULL,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                expires_at DATETIME NOT NULL,
+                revoked BOOLEAN DEFAULT FALSE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_refresh_user_id
+                    FOREIGN KEY (user_id)
+                    REFERENCES usuarios(id)
+                    ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
