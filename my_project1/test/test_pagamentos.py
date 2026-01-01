@@ -154,7 +154,9 @@ def test_adicionar_registro_pagamento(client_app4, db_conexao, auth_headers):
         resp = client_app4.post(
             '/registros-pagamento',
             headers=auth_headers,
-            json={'id_viagem': id_viagem}
+            json={
+                'id_viagem': id_viagem
+            }
         )
 
     assert resp.status_code == 201
@@ -169,7 +171,9 @@ def test_adicionar_registro_pagamento_inexistente(client_app4, db_conexao, auth_
         resp = client_app4.post(
             '/registros-pagamento',
             headers=auth_headers,
-            json={'id_viagem': 99999}
+            json={
+                'id_viagem': 99999
+            }
         )
 
     assert resp.status_code in (400, 404)
@@ -203,7 +207,9 @@ def test_atualizar_registro_pagamento_inexistente(client_app4, db_conexao, auth_
         resp = client_app4.put(
             '/registros-pagamento/99999',
             headers=auth_headers,
-            json={'remetente': 'Teste'}
+            json={
+                'remetente': 'Teste'
+            }
         )
 
     assert resp.status_code == 404

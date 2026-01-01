@@ -182,7 +182,10 @@ def test_adicionar_viagem_passageiro_inexistente(client_app3, db_conexao, auth_h
         resp = client_app3.post(
             '/viagens',
             headers=auth_headers,
-            json={'id_passageiro': 999, 'id_motorista': 1}
+            json={
+                'id_passageiro': 999,
+                'id_motorista': 1
+            }
         )
 
     assert resp.status_code == 404
@@ -203,7 +206,10 @@ def test_adicionar_viagem_motorista_inexistente(client_app3, db_conexao, auth_he
         resp = client_app3.post(
             '/viagens',
             headers=auth_headers,
-            json={'id_passageiro': 1, 'id_motorista': 999}
+            json={
+                'id_passageiro': 1,
+                'id_motorista': 999
+            }
         )
 
     assert resp.status_code == 404
@@ -233,7 +239,9 @@ def test_atualizar_viagem(client_app3, db_conexao, auth_headers):
         resp = client_app3.put(
             f'/viagens/{viagem_id}',
             headers=auth_headers,
-            json={'status': 'cancelada'}
+            json={
+                'status': 'cancelada'
+            }
         )
 
     assert resp.status_code == 200
@@ -247,7 +255,9 @@ def test_atualizar_viagem_inexistente(client_app3, db_conexao, auth_headers):
         resp = client_app3.put(
             '/viagens/99999',
             headers=auth_headers,
-            json={'status': 'cancelada'}
+            json={
+                'status': 'cancelada'
+            }
         )
 
     assert resp.status_code == 404

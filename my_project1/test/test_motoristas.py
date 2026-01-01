@@ -159,7 +159,10 @@ def test_atualizar_motorista(client_app2, db_conexao, auth_headers):
         resp = client_app2.put(
             f'/motoristas/{novo_id}',
             headers=auth_headers,
-            json={'nome': 'Pedro Silva', 'valor_passagem': 35}
+            json={
+                'nome': 'Pedro Silva',
+                'valor_passagem': 35
+            }
         )
 
         assert resp.status_code == 200
@@ -172,7 +175,9 @@ def test_atualizar_motorista_inexistente(client_app2, db_conexao, auth_headers):
         resp = client_app2.put(
             '/motoristas/99999',
             headers=auth_headers,
-            json={'status': 'ativo'}
+            json={
+                'status': 'ativo'
+            }
         )
 
     assert resp.status_code == 404

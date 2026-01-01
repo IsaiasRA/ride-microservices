@@ -192,7 +192,9 @@ def test_atualizar_passageiro_inexistente(client_app1, db_conexao, auth_headers)
         resp = client_app1.put(
             '/passageiros/99999',
             headers=auth_headers,
-            json={'pagamento': 'pago'}
+            json={
+                'pagamento': 'pago'
+            }
         )
 
     assert resp.status_code == 404
