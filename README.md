@@ -88,6 +88,3 @@ Isso garante testes:
 - rápidos
 - determinísticos
 - independentes de infraestrutura
-
-```bash
-pytest
