@@ -12,7 +12,7 @@ import logging
 configurar_logging()
 logger = logging.getLogger(__name__)
 
-USUARIO = 'I$aia$110'
+
 SECRET_KEY = "20060305_i$aia$10"
 ALGORITHM = "HS256"
 ACCESS_EXPIRES_MIN = 30

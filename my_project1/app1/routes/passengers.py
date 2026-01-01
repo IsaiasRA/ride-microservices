@@ -100,7 +100,7 @@ def buscar_passageiro(id):
         return jsonify({'erro': 'Erro inesperado ao buscar passageiros!'}), 500
 
 
-@passageiros_bp.route('/', methods=['POST'])
+@passageiros_bp.route('/register', methods=['POST'])
 @limiter.limit('3 per minute')
 def register():
     try:
@@ -456,7 +456,7 @@ def adicionar_passageiro():
                       dados['metodo_pagamento'], dados['pagamento'], agora, agora))
 
             novo_id = cursor.lastrowid
-            logger.info(f'Passageiro {novo_id} adicionado com sucesso.')
+            logger.info(f'Passageiro id={novo_id} adicionado com sucesso.')
             return jsonify({'mensagem': 'Passageiro adicionado com suceso!',
                             'id': novo_id}), 201
 
