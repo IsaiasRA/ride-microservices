@@ -225,6 +225,7 @@ def atualizar_motorista(id):
                     raise ValueError
 
                 dados[campo] = valor
+                
             except Exception:
                 logger.warning(
                     f'Valor inválido para {campo}: {dados.get(campo)}')
