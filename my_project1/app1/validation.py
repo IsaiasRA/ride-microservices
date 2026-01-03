@@ -23,8 +23,8 @@ def validar_json():
         
         return dados
     except BadRequest:
-        logger.warning(f'JSON malformado! Dado inválido no corpo da requisição.')
-        return jsonify({'erro': 'JSON malformado. Envie dado válido!'}), 400
+        logger.warning(f'JSON malformado! Dados inválidos no corpo da requisição.')
+        return jsonify({'erro': 'JSON malformado. Dados inválidos!'}), 400
     
     except Exception as erro:
         logger.error(f'Erro inesperado ao válidar JSON: {str(erro)}')
