@@ -29,4 +29,20 @@ def validar_json():
     except Exception as erro:
         logger.error(f'Erro inesperado ao válidar JSON: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao válidar JSON!'}), 500
-    
+
+
+PREPOSICOES = [
+    'da', 'de', 'do', 'das', 'dos',
+    'van', 'von', 'di', 'du'
+]
+
+
+def formatar_nome(nome: str):
+    palavras = nome.strip().lower().split()
+
+    nome_formatado = []
+    for i, p in enumerate(palavras):
+        if p in PREPOSICOES and i != 0:
+            nome_formatado.append(p)
+        else:
+            nome_formatado.append(p.capitalize())

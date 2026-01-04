@@ -9,7 +9,6 @@ from app1.log import configurar_logging
 from app1.brute_force import (ip_bloqueado, registrar_falha,
                                limpar_falhas, limiter)
 from datetime import datetime, timedelta, timezone
-from werkzeug.exceptions import BadRequest
 from decimal import Decimal, InvalidOperation
 import logging
 import bcrypt
@@ -169,12 +168,6 @@ def login():
 
         dados = validar_json()
 
-        if not dados:
-            logger.warning(
-                'Dados ausentes ou inválidos no corpo da requisição.')
-            return jsonify(
-                {'erro': 'Dados ausentes ou inválidos no corpo da requisição!'}), 404
-
         REGRAS = {
             'usuario': lambda v: isinstance(v, str) and v.strip() != '',
             'senha': lambda v: isinstance(v, str) and v.strip() != ''
@@ -250,11 +243,6 @@ def login():
             )
 
             return response, 200
-
-    except BadRequest:
-        logger.warning(
-            'JSON malformado! Dado inválido no corpo da requisição.')
-        return jsonify({'erro': 'JSON malformado. Envie dado válido!'}), 400
 
     except Exception as erro:
         logger.error(f'Erro inesperado ao gerar token: {str(erro)}')
