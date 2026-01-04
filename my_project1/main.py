@@ -119,9 +119,9 @@ with conexao() as cursor:
             CREATE TABLE IF NOT EXISTS passageiros (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 nome VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(nome)) > 0),
-                cpf VARCHAR(14) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) IN (11, 14)),
+                cpf CHAR(11) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) = 11),
                 telefone VARCHAR(20) NOT NULL UNIQUE CHECK(LENGTH(TRIM(telefone)) >= 8),
-                valor DECIMAL(10, 2) NOT NULL CHECK(valor > 0),
+                saldo DECIMAL(10, 2) DEFAULT 0 CHECK(saldo >= 0),
                 endereco_rua VARCHAR(100) NOT NULL,
                 endereco_numero VARCHAR(10) NOT NULL,
                 endereco_bairro VARCHAR(50) NOT NULL,
@@ -129,8 +129,8 @@ with conexao() as cursor:
                 endereco_estado CHAR(2) NOT NULL CHECK(LENGTH(TRIM(endereco_estado)) = 2),
                 endereco_cep VARCHAR(10) NOT NULL CHECK(LENGTH(TRIM(endereco_cep)) >= 8),
                 km DECIMAL(6, 2) NOT NULL CHECK(km > 0),
-                metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                pagamento ENUM('pago', 'cancelado', 'pendente') DEFAULT 'pendente',
+                metodo_pagamento ENUM(
+                   'pix', 'credito', 'debito', 'boleto') NOT NULL,
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP
@@ -155,7 +155,7 @@ with conexao() as cursor:
                 modelo_carro VARCHAR(50) NOT NULL,
                 ano_carro INT UNSIGNED NOT NULL CHECK(ano_carro >= 1980),
                 status ENUM('ativo', 'suspenso', 'bloqueado') DEFAULT 'ativo',
-                valor_passagem DECIMAL(5, 2) UNSIGNED DEFAULT 2.50,
+                valor_passagem DECIMAL(5, 2) UNSIGNED NOT NULL,
                 quantia DECIMAL(10, 2) UNSIGNED DEFAULT 0 CHECK(quantia >= 0),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -194,8 +194,8 @@ with conexao() as cursor:
                     CHECK(LENGTH(TRIM(endereco_cep)) >= 8),
                 valor_por_km DECIMAL(5, 2) NOT NULL CHECK(valor_por_km > 0),
                 total_viagem DECIMAL(10, 2) NOT NULL CHECK(total_viagem > 0),
-                metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                pagamento ENUM('pago', 'cancelado', 'pendente') NOT NULL,
+                metodo_pagamento ENUM(
+                   'pix', 'credito', 'debito', 'boleto') NOT NULL,
                 status ENUM('confirmada', 'cancelada') DEFAULT 'confirmada',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -203,12 +203,12 @@ with conexao() as cursor:
                 CONSTRAINT fk_viagens_passageiro
                    FOREIGN KEY (id_passageiro)
                    REFERENCES passageiros(id)
-                   ON DELETE CASCADE ON UPDATE CASCADE,
+                   ON DELETE RESTRICT ON UPDATE RESTRICT,
 
                 CONSTRAINT fk_viagens_motoristas
                     FOREIGN KEY (id_motorista)
                     REFERENCES motoristas(id)
-                    ON DELETE CASCADE ON UPDATE CASCADE,
+                    ON DELETE RESTRICT ON UPDATE RESTRICT,
 
                 INDEX idx_viagens_passageiro (id_passageiro),
                 INDEX idx_viagens_motorista (id_motorista)
@@ -235,7 +235,7 @@ with conexao() as cursor:
                 remetente VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(remetente)) > 0),
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                pagamento ENUM('pago', 'cancelado', 'pendente') NOT NULL,
+                pagamento ENUM('pago', 'cancelado', 'pendente') DEFAULT 'pago',
                 status ENUM('concluido', 'cancelado') DEFAULT 'concluido',
                 valor_viagem DECIMAL(10, 2) NOT NULL CHECK(valor_viagem > 0),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -270,10 +270,10 @@ def listar_passageiros():
         logger.info('Listando passageiros...')
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, nome, cpf, telefone, valor, endereco_rua,
+                SELECT id, nome, cpf, telefone, saldo, endereco_rua,
                        endereco_numero, endereco_bairro, endereco_cidade, 
                        endereco_estado, endereco_cep, km, metodo_pagamento,
-                       pagamento, criado_em, atualizado_em
+                       criado_em, atualizado_em
                     FROM passageiros''')
 
             dados = [{
@@ -281,7 +281,7 @@ def listar_passageiros():
                 'nome': p[1],
                 'cpf': p[2],
                 'telefone': p[3],
-                'valor': p[4],
+                'saldo': p[4],
                 'endereco_rua': p[5],
                 'endereco_numero': p[6],
                 'endereco_bairro': p[7],
@@ -290,9 +290,8 @@ def listar_passageiros():
                 'endereco_cep': p[10],
                 'km': p[11],
                 'metodo_pagamento': p[12],
-                'pagamento': p[13],
-                'criado_em': p[14],
-                'atualizado_em': p[15]
+                'criado_em': p[13],
+                'atualizado_em': p[14]
             } for p in cursor.fetchall()]
 
             if not dados:
@@ -314,10 +313,10 @@ def buscar_passageiro(id):
         logger.info(f'Buscando passageiro com id={id}...')
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, nome, cpf, telefone, valor, endereco_rua,
+                SELECT id, nome, cpf, telefone, saldo, endereco_rua,
                        endereco_numero, endereco_bairro, endereco_cidade, 
                        endereco_estado, endereco_cep, km, metodo_pagamento,
-                       pagamento, criado_em, atualizado_em
+                       criado_em, atualizado_em
                     FROM passageiros WHERE id = %s''', (id,))
             dado = cursor.fetchone()
 
@@ -331,7 +330,7 @@ def buscar_passageiro(id):
                 'nome': dado[1],
                 'cpf': dado[2],
                 'telefone': dado[3],
-                'valor': dado[4],
+                'saldo': dado[4],
                 'endereco_rua': dado[5],
                 'endereco_numero': dado[6],
                 'endereco_bairro': dado[7],
@@ -340,9 +339,8 @@ def buscar_passageiro(id):
                 'endereco_cep': dado[10],
                 'km': dado[11],
                 'metodo_pagamento': dado[12],
-                'pagamento': dado[13],
-                'criado_em': dado[14],
-                'atualizado_em': dado[15]
+                'criado_em': dado[13],
+                'atualizado_em': dado[14]
             }), 200
     except Exception as erro:
         logger.error(f'Erro inesperado ao buscar passageiros: {str(erro)}')
@@ -427,7 +425,7 @@ def login():
 
         if faltando:
             logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
-            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"})
+            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
 
         for campo, regra in REGRAS.items():
             try:
@@ -621,7 +619,7 @@ def adicionar_passageiro():
                 v, str) and re.fullmatch(r'\d{11}', v) is not None,
             'telefone': lambda v: isinstance(
                 v, str) and re.fullmatch(r'\d{10,11}', v) is not None,
-            'valor': lambda v: isinstance(v, Decimal) and v > 0,
+            'saldo': lambda v: isinstance(v, Decimal) and v >= 0,
             'endereco_rua': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_numero': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_bairro': lambda v: isinstance(v, str) and v.strip() != '',
@@ -631,9 +629,7 @@ def adicionar_passageiro():
                 v, str) and re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
             'km': lambda v: isinstance(v, Decimal) and v > 0,
             'metodo_pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto'),
-            'pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pago', 'cancelado', 'pendente')
+                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto')
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -653,13 +649,13 @@ def adicionar_passageiro():
                 elif campo in ('nome', 'endereco_cidade'):
                     valor = formatar_nome(valor)
                 
-                elif campo in ('pagamento', 'metodo_pagamento'):
+                elif campo in ('metodo_pagamento'):
                     valor = str(valor).strip().lower()
                 
                 elif campo == 'endereco_estado':
                     valor = str(valor).strip().upper()
 
-                elif campo in ('valor', 'km'):
+                elif campo in ('saldo', 'km'):
                     try:
                         valor = Decimal(str(valor)).quantize(Decimal('0.01'))
                     except InvalidOperation:
@@ -678,20 +674,21 @@ def adicionar_passageiro():
         with conexao() as cursor:
             cursor.execute('''
                 INSERT INTO passageiros (
-                    nome, cpf, telefone, valor, endereco_rua, endereco_numero,
+                    nome, cpf, telefone, saldo, endereco_rua, endereco_numero,
                     endereco_bairro, endereco_cidade, endereco_estado,
-                    endereco_cep, km, metodo_pagamento, pagamento) VALUES 
-                    (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    endereco_cep, km, metodo_pagamento) VALUES 
+                    (%s, %s, %s, %s, %s, %s,
                      %s, %s, %s, %s, %s, %s)
-                ''', (dados['nome'], dados['cpf'], dados['telefone'], dados['valor'],
+                ''', (dados['nome'], dados['cpf'], dados['telefone'], dados['saldo'],
                       dados['endereco_rua'], dados['endereco_numero'],
                       dados['endereco_bairro'], dados['endereco_cidade'],
                       dados['endereco_estado'], dados['endereco_cep'], dados['km'],
-                      dados['metodo_pagamento'], dados['pagamento']))
-
+                      dados['metodo_pagamento'])
+                )
+            
             novo_id = cursor.lastrowid
             logger.info(f'Passageiro {novo_id} adicionado com sucesso.')
-            return jsonify({'mensagem': 'Passageiro adicionado com suceso!',
+            return jsonify({'mensagem': 'Passageiro adicionado com sucesso!',
                             'id': novo_id}), 201
 
     except Exception as erro:
@@ -709,11 +706,9 @@ def atualizar_passageiro(id):
 
         REGRAS = {
             'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'cpf': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{11}', v) is not None,
             'telefone': lambda v: isinstance(
                 v, str) and re.fullmatch(r'\d{10,11}', v) is not None,
-            'valor': lambda v: isinstance(v, Decimal) and v > 0,
+            'saldo': lambda v: isinstance(v, Decimal) and v >= 0,
             'endereco_rua': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_numero': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_bairro': lambda v: isinstance(v, str) and v.strip() != '',
@@ -723,9 +718,7 @@ def atualizar_passageiro(id):
                 v, str) and re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
             'km': lambda v: isinstance(v, Decimal) and v > 0,
             'metodo_pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto'),
-            'pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pago', 'cancelado', 'pendente')
+                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto')
         }
 
         enviados = {k: v for k, v in dados.items(
@@ -737,7 +730,7 @@ def atualizar_passageiro(id):
 
         for campo, valor in enviados.items():
             try:
-                if campo in ('cpf', 'telefone', 'endereco_rua',
+                if campo in ('telefone', 'endereco_rua',
                              'endereco_numero', 'endereco_bairro',
                              'endereco_cep'):
                     valor = str(valor).strip()
@@ -748,10 +741,10 @@ def atualizar_passageiro(id):
                 elif campo == 'endereco_estado':
                     valor = str(valor).strip().upper()
                 
-                elif campo in ('pagamento', 'metodo_pagamento'):
+                elif campo in ('metodo_pagamento'):
                     valor = str(valor).strip().lower()
 
-                elif campo in ('valor', 'km'):
+                elif campo in ('saldo', 'km'):
                     try:
                         valor = Decimal(str(valor)).quantize(Decimal('0.01'))
                     except InvalidOperation:
@@ -761,6 +754,7 @@ def atualizar_passageiro(id):
                     raise ValueError
 
                 enviados[campo] = valor
+
             except Exception:
                 logger.warning(
                     f'Valor inválido para {campo}: {dados.get(campo)}')
@@ -824,7 +818,7 @@ def listar_motoristas():
         with conexao() as cursor:
             cursor.execute('''
                 SELECT id, nome, cnh, telefone, categoria_cnh, placa,
-                       modelo_carro, ano_carro, status, valor_pasagem,
+                       modelo_carro, ano_carro, status, valor_passagem,
                        quantia, criado_em, atualizado_em
                     FROM motoristas''')
             dados = [{
@@ -864,7 +858,7 @@ def buscar_motorista(id):
         with conexao() as cursor:
             cursor.execute('''
                 SELECT id, nome, cnh, telefone, categoria_cnh, placa,
-                       modelo_carro, ano_carro, status, valor_pasagem,
+                       modelo_carro, ano_carro, status, valor_passagem,
                        quantia, criado_em, atualizado_em
                     FROM motoristas WHERE id = %s''', (id,))
             dado = cursor.fetchone()
@@ -913,7 +907,8 @@ def adicionar_motorista():
             'placa': lambda v: isinstance(v, str) and re.fullmatch(
                 r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v.upper()) is not None,
             'modelo_carro': lambda v: isinstance(v, str) and v.strip() != '',
-            'ano_carro': lambda v: isinstance(v, int) and v >= 1980
+            'ano_carro': lambda v: isinstance(v, int) and v >= 1980,
+            'valor_passagem': lambda v: isinstance(v, Decimal) and v > 0
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -934,6 +929,12 @@ def adicionar_motorista():
                 
                 elif campo == 'categoria_cnh':
                     valor = str(valor).strip().upper()
+                
+                elif campo == 'valor_passagem':
+                    try:
+                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
+                    except InvalidOperation:
+                        raise ValueError
 
                 elif campo == 'ano_carro':
                     valor = int(valor)
@@ -953,7 +954,7 @@ def adicionar_motorista():
                 INSERT INTO motoristas
                     (nome, cnh, telefone, categoria_cnh,
                      placa, modelo_carro, ano_carro)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                     VALUES (%s, %s, %s, %s, %s, %s, %s)''',
                            (dados['nome'], dados['cnh'], dados['telefone'],
                             dados['categoria_cnh'], dados['placa'], dados['modelo_carro'],
                                dados['ano_carro']))
@@ -979,7 +980,6 @@ def atualizar_motorista(id):
 
         REGRAS = {
             'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'cnh': lambda v: isinstance(v, str) and len(v.strip()) == 11,
             'telefone': lambda v: isinstance(v, str) and len(v.strip()) >= 8,
             'categoria_cnh': lambda v: isinstance(
                 v, str) and v.strip().upper() in ('A', 'B', 'C', 'D', 'E'),
@@ -1074,7 +1074,7 @@ def deletar_motorista(id):
             
             cursor.execute('''
                 UPDATE motoristas SET
-                     status = "bloqueado WHERE id = %s"''',
+                     status = "bloqueado" WHERE id = %s''',
                      (id,))
 
             logger.info('Motorista bloqueado com sucesso.')
@@ -1103,7 +1103,7 @@ def listar_viagens():
                        nome_motorista, endereco_rua, endereco_numero,
                        endereco_bairro, endereco_cidade, endereco_estado,
                        endereco_cep, valor_por_km, total_viagem,
-                       metodo_pagamento, pagamento, status, criado_em,
+                       metodo_pagamento, status, criado_em,
                        atualizado_em
                     FROM viagens''')
             
@@ -1122,10 +1122,9 @@ def listar_viagens():
                 'valor_por_km': v[11],
                 'total_viagem': v[12],
                 'metodo_pagamento': v[13],
-                'pagamento': v[14],
-                'status': v[15],
-                'criado_em': v[16],
-                'atualizado_em': v[17]
+                'status': v[14],
+                'criado_em': v[15],
+                'atualizado_em': v[16]
             } for v in cursor.fetchall()]
 
             if not dados:
@@ -1152,9 +1151,10 @@ def buscar_viagem(id):
                        nome_motorista, endereco_rua, endereco_numero,
                        endereco_bairro, endereco_cidade, endereco_estado,
                        endereco_cep, valor_por_km, total_viagem,
-                       metodo_pagamento, pagamento, status, criado_em,
+                       metodo_pagamento, status, criado_em,
                        atualizado_em
                     FROM viagens WHERE id = %s''', (id,))
+
             dado = cursor.fetchone()
 
             if not dado:
@@ -1177,10 +1177,9 @@ def buscar_viagem(id):
                 'valor_por_km': dado[11],
                 'total_viagem': dado[12],
                 'metodo_pagamento': dado[13],
-                'pagamento': dado[14],
-                'status': dado[15],
-                'criado_em': dado[16],
-                'atualizado_em': dado[17]
+                'status': dado[14],
+                'criado_em': dado[15],
+                'atualizado_em': dado[16]
             }), 200
 
     except Exception as erro:
@@ -1223,7 +1222,7 @@ def adicionar_viagem():
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
         with conexao() as cursor:
-            cursor.execute('SELECT valor FROM passageiros WHERE id = %s FOR UPDATE',
+            cursor.execute('SELECT saldo FROM passageiros WHERE id = %s FOR UPDATE',
                            (dados['id_passageiro'],))
 
             saldo = cursor.fetchone()
@@ -1232,7 +1231,7 @@ def adicionar_viagem():
                     f"Passageiro {dados['id_passageiro']} não encontrado.")
                 return jsonify({'erro': 'Passageiro não encontrado!'}), 404
 
-            cursor.execute('SELECT * FROM motoristas WHERE id = %s',
+            cursor.execute('SELECT id FROM motoristas WHERE id = %s',
                            (dados['id_motorista'],))
 
             if not cursor.fetchone():
@@ -1282,7 +1281,7 @@ def adicionar_viagem():
             campos_obrigatorio_passageiro = ['nome', 'endereco_rua', 'endereco_numero',
                                              'endereco_bairro', 'endereco_cidade',
                                              'endereco_estado', 'endereco_cep', 'km',
-                                             'metodo_pagamento', 'pagamento']
+                                             'metodo_pagamento']
 
             for campo in campos_obrigatorio_passageiro:
                 valor = passa_payload.get(campo)
@@ -1312,7 +1311,6 @@ def adicionar_viagem():
                                     ).quantize(Decimal('0.01'))
                 km = Decimal(str(passa_payload.get('km'))).quantize(Decimal('0.01'))
                 metodo_pagamento = str(passa_payload.get('metodo_pagamento')).strip().lower()
-                pagamento = str(passa_payload.get('pagamento')).strip().lower()
                 status_moto = str(moto_payload.get('status')).strip().lower()
             except (ValueError, TypeError, InvalidOperation) as erro:
                 logger.warning(f'Erro ao extrair campo da API: {str(erro)}')
@@ -1332,20 +1330,13 @@ def adicionar_viagem():
                 return jsonify(
                     {'erro': 'Motorista suspenso ou bloqueado não pode fazer viagens!'}), 400
 
-            if pagamento in ('cancelado', 'pendente'):
-                logger.warning(f'Pagamento cancelado ou pendente')
-                return jsonify({
-                    'erro': 'Pagamento cancelado ou pendente para'
-                    ' confirmar a viagem atualize para pago'
-                }), 400
-
             total_viagem = (valor_por_km * km).quantize(Decimal('0.01'))
 
             if saldo[0] < total_viagem:
                 logger.warning('Saldo insuficiente.')
                 return jsonify({'erro': 'Saldo insuficiente!'}), 400
 
-            cursor.execute('UPDATE passageiros SET valor = valor - %s WHERE id = %s',
+            cursor.execute('UPDATE passageiros SET saldo = saldo - %s WHERE id = %s',
                            (total_viagem, dados['id_passageiro']))
 
             cursor.execute('UPDATE motoristas SET quantia = quantia + %s WHERE id = %s',
@@ -1356,13 +1347,13 @@ def adicionar_viagem():
                         (id_passageiro, id_motorista, nome_passageiro,
                          nome_motorista, endereco_rua, endereco_numero, endereco_bairro,
                          endereco_cidade, endereco_estado, endereco_cep, valor_por_km,
-                         total_viagem, metodo_pagamento, pagamento) 
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
+                         total_viagem, metodo_pagamento) 
+                         VALUES (%s, %s, %s, %s, %s, %s, %s,
                                  %s, %s, %s, %s, %s, %s)
                     ''', (dados['id_passageiro'], dados['id_motorista'], nome_passageiro,
                           nome_motorista, endereco_rua, endereco_numero, endereco_bairro,
                           endereco_cidade, endereco_estado, endereco_cep, valor_por_km,
-                          total_viagem, metodo_pagamento, pagamento))
+                          total_viagem, metodo_pagamento))
             
             novo_id = cursor.lastrowid
 
@@ -1377,116 +1368,33 @@ def adicionar_viagem():
         return jsonify({'erro': 'Erro inesperado ao adicionar viagem!'}), 500
 
 
-@app3.route('/viagens/<int:id>', methods=['PUT'])
+@app3.route('/viagens/<int:id>/cancelar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida
-def atualizar_viagem(id):
-    try:
-        logger.info(f'Atualizando viagem com id={id}...')
-
-        dados = validar_json()
-
-        REGRAS = {
-            'status': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('confirmada', 'cancelada')
-        }
-
-        enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
-
-        if not enviados:
-            logger.warning('Nenhum campo enviado para a atualização.')
-            return jsonify({'erro': 'Envie ao menos um campo para a atualizar!'}), 400
-
-        for campo, valor in enviados.items():
-            try:
-                valor = str(valor).strip().lower()
-
-                if not REGRAS[campo](valor):
-                    raise ValueError
-
-                enviados[campo] = valor
-
-            except Exception:
-                logger.warning(
-                    f'Valor inválido para {campo}: {dados.get(campo)}')
-                return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
-
-            with conexao() as cursor:
-                cursor.execute('''
-                    UPDATE viagens SET status = %s
-                        WHERE id = %s''',
-                        (enviados['status'], id))
-
-                if cursor.rowcount == 0:
-                    logger.warning(f'Viagem id={id} não encontrado.')
-                    return jsonify({'erro': 'Viagem não encontrado!'}), 404
-
-                logger.info(f'Viagem id={id} atualizada com sucesso.')
-                return jsonify({
-                    'mensagem': 'Viagem atualizada com sucesso',
-                    'atualizado': enviados
-                }), 200
-
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao atualizar viagem: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao atualizar viagem!'}), 500
-
-
-@app1.route('/viagens/<int:id>/cancelar', methods=['PATCH'])
 def cancelar_viagem(id):
     try:
         logger.info(f'Cancelando viagem com id={id}...')
 
         with conexao() as cursor:
             cursor.execute(
-                '''SELECT id_passageiro, id_motorista, total_viagem, status, pagamento
-                  FROM viagens WHERE id = %s FOR UPDATE''',
+                '''SELECT status FROM viagens WHERE id = %s''',
                   (id,))
             viagem = cursor.fetchone()
 
             if not viagem:
-                logger.warning(f'Viagem id={id} não encontrado.')
+                logger.warning(f'Viagem id={id} não encontrada.')
                 return jsonify({'erro': 'Viagem não encontrada!'}), 404
-           
-            cursor.execute(
-                'SELECT valor, pagamento FROM passageiros WHERE id = %s FOR UPDATE',
-                            (viagem[0],))
-
-            passageiro = cursor.fetchone()
-
-            if not passageiro:
-                logger.warning(
-                    f"Passageiro id={viagem[0]} não encontrado.")
-                return jsonify({'erro': 'Passageiro não encontrado!'}), 404
-
-            cursor.execute(
-                'SELECT quantia FROM motoristas WHERE id = %s FOR UPDATE',
-                (viagem[1],))
-
-            motorista = cursor.fetchone()
-
-            if not motorista:
-                logger.warning(
-                    f"Motorista id={viagem[1]} não encontrado.")
-                return jsonify({'erro': 'Motorista não encontrado!'}), 404
-
-            cursor.execute(
-                'UPDATE motoristas SET quantia = quantia - %s WHERE id = %s',
-                            (viagem[2], viagem[1]))
-
-            cursor.execute(
-                '''UPDATE passageiros SET valor = valor + %s,
-                        pagamento = "cancelado" WHERE id = %s''',
-                    (viagem[2], viagem[0]))
             
-            cursor.execute('''
-                UPDATE viagens SET status = "cancelada",
-                    pagamento = "cancelado" WHERE id = %s''',
+            cursor.execute("UPDATE viagens SET status = 'cancelada'"\
+                    "WHERE id = %s AND status != 'cancelada'",
                     (id,))
+            
+            if cursor.rowcount == 0:
+                logger.warning(f'Viagem já foi cancelada.')
+                return jsonify({'erro': 'Viagem já está cancelada!'}), 409
 
-            logger.info('Estorno realizado com sucesso!')
-            return jsonify(
-                {'mensagem': 'Viagem cancelada! Estorno bem-sucedido.!'}), 200
+            logger.info('Viagem cancelada com sucesso!')
+            return '', 204
 
     except Exception as erro:
         logger.error(f'Erro inesperado ao atualizar viagem: {str(erro)}')
@@ -1549,7 +1457,8 @@ def buscar_registro_pagamento(id):
                 SELECT id, id_viagem, remetente, recebedor,
                        metodo_pagamento, pagamento, status,
                        valor_viagem, criado_em, atualizado_em
-                    FROM registros_pagamento WHERE id = %s''')
+                    FROM registros_pagamento WHERE id = %s''',
+                    (id,))
             dado = cursor.fetchone()
 
             if not dado:
@@ -1609,7 +1518,7 @@ def adicionar_pagamento():
 
         with conexao() as cursor:
             cursor.execute(
-                'SELECT * FROM viagens WHERE id = %s FOR UPDATE',
+                'SELECT id FROM viagens WHERE id = %s',
                 (dados['id_viagem'],))
 
             viagem = cursor.fetchone()
@@ -1645,7 +1554,7 @@ def adicionar_pagamento():
                     {'erro': 'Requisição da API externa não é um dicionário!'}), 400
 
             campos_obrigatorios = ['nome_passageiro', 'nome_motorista', 'metodo_pagamento',
-                                   'pagamento', 'status', 'total_viagem']
+                                   'status', 'total_viagem']
 
             for campo in campos_obrigatorios:
                 valor = viagem_payload.get(campo)
@@ -1655,10 +1564,9 @@ def adicionar_pagamento():
 
             try:
                 remetente = formatar_nome(viagem_payload.get('nome_passageiro'))
-                recebedor = formatar_nome(viagem_payload.get('nome_passageiro'))
+                recebedor = formatar_nome(viagem_payload.get('nome_motorista'))
                 metodo_pagamento = str(
                     viagem_payload.get('metodo_pagamento')).strip().lower()
-                pagamento = str(viagem_payload.get('pagamento')).strip().lower()
                 status_viagem = str(viagem_payload.get('status')).strip().lower()
                 valor_viagem = Decimal(
                     str(viagem_payload.get('total_viagem'))).quantize(Decimal('0.01'))
@@ -1666,11 +1574,6 @@ def adicionar_pagamento():
                 logger.warning(
                     f'Erro ao extrair campos da API externa: {str(erro)}')
                 return jsonify({'erro': 'Erro ao extrair campos da API externa!'}), 400
-
-            if pagamento in ('cancelado', 'pendente'):
-                logger.warning('Pagamento cancelado ou pendente.')
-                return jsonify(
-                    {'erro': 'Pagamento cancelado ou pendente não pode ser registrado!'}), 400
 
             if status_viagem == 'cancelada':
                 logger.warning(f'Viagem cancelada não pode ser registrada.')
@@ -1683,10 +1586,10 @@ def adicionar_pagamento():
             cursor.execute('''
                     INSERT INTO registros_pagamento
                         (id_viagem, remetente, recebedor,
-                         metodo_pagamento, pagamento, valor_viagem
-                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                         metodo_pagamento, valor_viagem
+                        ) VALUES (%s, %s, %s, %s, %s)
                     ''', (dados['id_viagem'], remetente, recebedor,
-                          metodo_pagamento, pagamento, valor_viagem))
+                          metodo_pagamento, valor_viagem))
 
             novo_id = cursor.lastrowid
             logger.info(
@@ -1701,7 +1604,7 @@ def adicionar_pagamento():
             {'erro': 'Erro inesperado ao adicionar registro de pagamento!'}), 500
 
 
-@app4.route('/registros-pagamento/<int:id>', methods=['PUT'])
+@app4.route('/registros-pagamento/<int:id>', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida
 def atualizar_registro_pagamento(id):
@@ -1711,8 +1614,10 @@ def atualizar_registro_pagamento(id):
         dados = validar_json()
 
         REGRAS = {
+            'pagamento': lambda v: isinstance(
+                v, str) and v.strip().lower() in ('pago', 'pendente', 'cancelado'),
             'status': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('concluido')
+                v, str) and v.strip().lower() in ('concluido', 'cancelado')
         }
 
         enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
@@ -1734,11 +1639,16 @@ def atualizar_registro_pagamento(id):
                 logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
             
+        set_sql = ", ".join(f"{campo} = %s" for campo in enviados.keys())
+        valores = list(enviados.values()) + [id]
+        
+        query = f"UPDATE registros_pagamento SET {set_sql} WHERE id = %s"
         with conexao() as cursor:
-            cursor.execute('''
-                UPDATE registros_pagamento SET
-                    status = %s WHERE id = %s
-                            ''', (enviados['status'], id))
+            cursor.execute(query, valores)
+
+            if cursor.rowcount == 0:
+                logger.warning(f'Registro id={id} não encontrado.')
+                return jsonify({'erro': 'Registro de pagamento não encontrado!'}), 404
 
             logger.info(f'Registro de pagamento id={id} atualizado com sucesso.')
             return jsonify({
@@ -1756,33 +1666,84 @@ def atualizar_registro_pagamento(id):
 @app4.route('/registros-pagamento/<int:id>/cancelar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida
-def cancela_registro_pagamento(id):
+def cancelar_registro_pagamento(id):
     try:
-        logger.info(f'Cancelando registro de pagamento com id={id}...')
+        logger.info(f'Cancelando registro com id={id}...')
+
         with conexao() as cursor:
-            cursor.execute('SELECT status FROM registros_pagamento WHERE id = %s',
-                           (id,))
+            cursor.execute('''
+                SELECT id_viagem, status FROM registros_pagamento
+                    WHERE id = %s FOR UPDATE''', (id,))
             registro = cursor.fetchone()
 
             if not registro:
                 logger.warning(f'Registro id={id} não encontrado.')
-                return({'erro': 'Registros de pagamento não encontrado!'}), 404
-
-            if registro[0] == 'cancelado':
-                logger.warning(f'Registro já foi cancelado.')
+                return jsonify({'erro': 'Registro não encontrado!'}), 404
+            
+            if registro[1] == 'cancelado':
+                logger.warning(f'Registro id={id} já foi cancelado.')
                 return '', 204
+
+            cursor.execute(
+                '''SELECT id_passageiro, id_motorista, total_viagem, status
+                        FROM viagens WHERE id = %s FOR UPDATE''',
+                  (registro[0],))
+            viagem = cursor.fetchone()
+
+            if not viagem:
+                logger.warning(f'Viagem id={registro[0]} não encontrado.')
+                return jsonify({'erro': 'Viagem não encontrada!'}), 404
+            
+            if viagem[3] != 'cancelada':
+                logger.warning(f'Viagem não foi cancelada.')
+                return jsonify(
+                    {'erro': 'Viagem precisa estar cancelada para realizar estorno!'}), 400
+           
+            cursor.execute(
+                'SELECT saldo FROM passageiros WHERE id = %s FOR UPDATE',
+                            (viagem[0],))
+
+            passageiro = cursor.fetchone()
+
+            if not passageiro:
+                logger.warning(
+                    f"Passageiro id={viagem[0]} não encontrado.")
+                return jsonify({'erro': 'Passageiro não encontrado!'}), 404
+
+            cursor.execute(
+                'SELECT quantia FROM motoristas WHERE id = %s FOR UPDATE',
+                (viagem[1],))
+
+            motorista = cursor.fetchone()
+
+            if not motorista:
+                logger.warning(
+                    f"Motorista id={viagem[1]} não encontrado.")
+                return jsonify({'erro': 'Motorista não encontrado!'}), 404
+            
+            if viagem[2] > motorista[0]:
+                logger.warning('Incosistência financeira detectada.')
+                return jsonify({'erro': 'Incosistência financeira!'}), 400
+
+            cursor.execute(
+                'UPDATE motoristas SET quantia = quantia - %s WHERE id = %s',
+                            (viagem[2], viagem[1]))
+
+            cursor.execute(
+                '''UPDATE passageiros SET saldo = saldo + %s WHERE id = %s''',
+                    (viagem[2], viagem[0]))
             
             cursor.execute('''
-                UPDATE registros_pagamento SET
-                    status = "cancelado", pagamento = "cancelado"
-                    WHERE id = %s''', (id,))
+                UPDATE registros_pagamento SET status = 'cancelado',
+                    pagamento = 'cancelado' WHERE id = %s''',
+                    (id,))
 
-            logger.info('Registro cancelado com sucesso.')
+            logger.info('Estorno realizado com sucesso!')
             return '', 204
 
     except Exception as erro:
-        logger.error(f'Erro inesperado ao deletar registro de pagamento: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao deletar registro de pagamento!'}), 500
+        logger.error(f'Erro inesperado ao atualizar viagem: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao atualizar viagem!'}), 500
 
 
 register_erro_handlers(app4)
