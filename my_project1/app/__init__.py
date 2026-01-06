@@ -1,11 +1,11 @@
 from flask import Flask
-from app1.routes.passengers import passageiros_bp
-from app1.routes.drivers import motoristas_bp
-from app1.routes.trips import viagens_bp
-from app1.routes.payment_records import registros_pagamento_bp
-from app1.database import inicializador_banco
-from app1.error import register_erro_handlers
-from app1.brute_force import limiter
+from app.routes.passengers import passageiros_bp
+from app.routes.drivers import motoristas_bp
+from app.routes.trips import viagens_bp
+from app.routes.payment_records import registros_pagamento_bp
+from app.database import inicializador_banco
+from app.error import register_erro_handlers
+from app.brute_force import limiter
 
 
 def create_api1():

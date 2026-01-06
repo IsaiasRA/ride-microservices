@@ -1,18 +1,18 @@
 from flask import Flask, jsonify, request
 from contextlib import closing, contextmanager
-from app1.error import (tratamento_erro_mysql,
+from app.error import (tratamento_erro_mysql,
                          register_erro_handlers)
-from app1.log import configurar_logging
-from app1.validation import validar_json, formatar_nome
-from app1.auth import (gerar_tokens,
+from app.log import configurar_logging
+from app.validation import validar_json, formatar_nome
+from app.auth import (gerar_tokens,
                         rota_protegida,
                           validar_token)
-from app1.refresh_tokens import (criar_usuario,
+from app.refresh_tokens import (criar_usuario,
                                   refresh_valido,
                                    salvar_refresh,
                                     revogar_refresh,
                                      revogar_todos_refresh)
-from app1.brute_force import (ip_bloqueado,
+from app.brute_force import (ip_bloqueado,
                                registrar_falha,
                                  limpar_falhas,
                                   limiter)

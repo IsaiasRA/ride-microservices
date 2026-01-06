@@ -1,10 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from app1.log import configurar_logging
+from app.log import configurar_logging
 from flask import jsonify, request, g
 from functools import wraps
 import jwt
-import hashlib
-import bcrypt
 import logging
 
 

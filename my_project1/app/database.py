@@ -1,5 +1,5 @@
 from contextlib import closing, contextmanager
-from app1.error import tratamento_erro_mysql
+from app.error import tratamento_erro_mysql
 import mysql.connector
 
 

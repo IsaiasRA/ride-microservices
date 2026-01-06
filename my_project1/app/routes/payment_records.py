@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify
-from app1.auth import rota_protegida
-from app1.database import conexao
-from app1.validation import validar_json, formatar_nome
-from app1.log import configurar_logging
-from app1.brute_force import limiter
+from app.auth import rota_protegida
+from app.database import conexao
+from app.validation import validar_json, formatar_nome
+from app.log import configurar_logging
+from app.brute_force import limiter
 from decimal import Decimal, InvalidOperation
 import logging
 

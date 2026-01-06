@@ -1,16 +1,16 @@
 from flask import Blueprint, jsonify, request
-from app1.auth import (rota_protegida,
+from app.auth import (rota_protegida,
                         gerar_tokens,
                          validar_token,)
-from app1.refresh_tokens import (criar_usuario,
+from app.refresh_tokens import (criar_usuario,
                                   salvar_refresh,
                                    refresh_valido,
                                     revogar_refresh,
                                     revogar_todos_refresh)
-from app1.database import conexao
-from app1.validation import validar_json, formatar_nome
-from app1.log import configurar_logging
-from app1.brute_force import (ip_bloqueado,
+from app.database import conexao
+from app.validation import validar_json, formatar_nome
+from app.log import configurar_logging
+from app.brute_force import (ip_bloqueado,
                                registrar_falha,
                                 limpar_falhas,
                                  limiter)

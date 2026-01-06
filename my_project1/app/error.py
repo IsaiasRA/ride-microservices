@@ -1,7 +1,7 @@
 from flask import jsonify, request
 from flask_limiter.errors import RateLimitExceeded
 from mysql.connector import errors
-from app1.log import configurar_logging
+from app.log import configurar_logging
 import logging
 
 

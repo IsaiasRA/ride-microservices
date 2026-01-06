@@ -1,5 +1,5 @@
 from flask import jsonify, request
-from app1.log import configurar_logging
+from app.log import configurar_logging
 from werkzeug.exceptions import BadRequest
 import logging
 

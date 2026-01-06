@@ -1,7 +1,7 @@
-from app1 import (create_api1,
-                  create_api2,
-                  create_api3,
-                  create_api4)
+from app import (create_api1,
+                 create_api2,
+                 create_api3,
+                 create_api4)
 import threading
 
 
