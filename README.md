@@ -1,50 +1,53 @@
-# 🚕 Sistema de Transporte – APIs Backend em Python (Flask)
+# 🚕 Transportation System – Backend APIs in Python (Flask)
 
-Projeto backend desenvolvido em **Python + Flask**, composto por **4 APIs independentes**, responsáveis por gerenciar passageiros, motoristas, viagens e registros de pagamento.
+Backend project developed using **Python + Flask**, composed of **four independent APIs** responsible for managing passengers, drivers, trips, and payment records.
 
-O sistema foi pensado com **separação de domínios**, regras de negócio bem definidas e arquitetura modular, simulando um ambiente próximo de **microserviços**.
+The system was designed with **clear domain separation**, well-defined business rules, and a **modular architecture**, simulating an environment close to **microservices**.
+
 ---
-## ⚙️ Tecnologias Utilizadas
+
+## ⚙️ Technologies Used
 - Python 3.11+
 - Flask
 - MySQL 8.0.44
-- Flask-Limiter (Rate Limit)
-- JWT (Autenticação)
+- Flask-Limiter (Rate Limiting)
+- JWT (Authentication)
 - Logging
-- Decimal (Precisão financeira)
-- Threading (execução simultânia das APIs)
+- Decimal (Financial Precision)
+- Threading (Simultaneous API execution)
+
 ---
 
-## 🧠 Visão Geral da Arquitetura
+## 🧠 Architecture Overview
 
-O projeto é dividido em quatro APIs:
+The project is divided into four APIs:
 
-| API | Responsabilidade | Porta |
+| API | Responsibility | Port |
 |---|---|---|
-| API Passageiros | Cadastro, saldo, dados pessoais | 5001 |
-| API Motoristas | Cadastro, status, valores | 5002 |
-| API Viagens | Criação e controle de viagens | 5003 |
-| API Registros de Pagamento | Controle financeiro das viagens | 5004 |
+| Passengers API | Registration, balance, personal data | 5001 |
+| Drivers API | Registration, status, fares | 5002 |
+| Trips API | Trip creation and management | 5003 |
+| Payment Records API | Financial control of trips | 5004 |
 
-Cada API:
-- Possui rotas próprias
-- Regras de negócio isoladas
-- Validações robustas
-- Controle de erros e logs
+Each API:
+- Has its own routes
+- Contains isolated business rules
+- Implements robust validations
+- Provides error handling and logging
 
 ---
 
-## 🧩 Execução Modular das APIs
+## 🧩 Modular API Execution
 
-As APIs são criadas utilizando o padrão **Application Factory** e podem ser executadas simultaneamente através de **threads**, cada uma em sua própria porta.
+The APIs are created using the **Application Factory** pattern and can be executed simultaneously using **threads**, each running on its own port.
 
-Essa abordagem:
-- Facilita manutenção
-- Permite escalar cada domínio separadamente
-- Simula um cenário de microserviços
-- Facilita futura migração para Docker/Kubernetes
+This approach:
+- Improves maintainability
+- Allows each domain to scale independently
+- Simulates a microservices-oriented architecture
+- Facilitates future migration to Docker/Kubernetes
 
-### Exemplo de inicialização das APIs
+### Example of API Initialization
 
 ```python
 from app1 import (
@@ -78,7 +81,7 @@ def main():
             daemon=True
         ).start()
 
-    input('APIs rodando. Pressione ENTER para sair.')
+    input('APIs running. Press ENTER to stop.')
 
 if __name__ == '__main__':
     main()
