@@ -1,90 +1,84 @@
-# Microsserviços de Transporte
+# 🚕 Sistema de Transporte – APIs Backend em Python (Flask)
 
-# Sistema de Viagens – Backend
+Projeto backend desenvolvido em **Python + Flask**, composto por **4 APIs independentes**, responsáveis por gerenciar passageiros, motoristas, viagens e registros de pagamento.
 
-API backend desenvolvida em Python com Flask para gerenciamento de passageiros, motoristas, viagens e pagamentos.
-
-## Tecnologias
-- Python
+O sistema foi pensado com **separação de domínios**, regras de negócio bem definidas e arquitetura modular, simulando um ambiente próximo de **microserviços**.
+---
+## ⚙️ Tecnologias Utilizadas
+- Python 3.11+
 - Flask
-- MySQL
-- Pytest
-
-## Funcionalidades
-- CRUD de passageiros
-- CRUD de motoristas
-- CRUD de viagens
-- CRUD de pagamentos
-
-## Como executar
-```bash
-python run.py
-
-
-❌ Problema:  
-- Genérico  
-- Não explica decisões  
-- Não mostra maturidade
-
+- MySQL 8.0.44
+- Flask-Limiter (Rate Limit)
+- JWT (Autenticação)
+- Logging
+- Decimal (Precisão financeira)
+- Threading (execução simultânia das APIs)
 ---
 
-```md
-# 🚗 Sistema de Viagens – Backend em Flask
+## 🧠 Visão Geral da Arquitetura
 
-Este projeto é um sistema backend desenvolvido em Python com Flask, simulando um ambiente de **múltiplas APIs independentes** para gerenciamento de passageiros, motoristas, viagens e pagamentos.
-
-O foco do projeto é demonstrar **arquitetura backend**, **regras de negócio**, **segurança** e **testes automatizados**, e não apenas CRUD simples.
-
----
-
-## 🧱 Arquitetura
-
-O sistema é composto por **4 APIs independentes**, cada uma rodando em uma porta diferente:
+O projeto é dividido em quatro APIs:
 
 | API | Responsabilidade | Porta |
-|----|------------------|-------|
-| API 1 | Passageiros | 5001 |
-| API 2 | Motoristas | 5002 |
-| API 3 | Viagens | 5003 |
-| API 4 | Pagamentos | 5004 |
+|---|---|---|
+| API Passageiros | Cadastro, saldo, dados pessoais | 5001 |
+| API Motoristas | Cadastro, status, valores | 5002 |
+| API Viagens | Criação e controle de viagens | 5003 |
+| API Registros de Pagamento | Controle financeiro das viagens | 5004 |
 
-As APIs são criadas por **factories (`create_apiX`)** e orquestradas por um arquivo principal (`run.py`), que apenas inicializa e executa as aplicações.
-
-> ⚠️ As APIs são executadas em threads apenas para fins didáticos.  
-> Em ambiente de produção, cada API seria executada como um processo ou container independente.
-
----
-
-## 🔐 Autenticação
-
-- Autenticação baseada em **JWT**
-- Tokens de acesso e refresh
-- Rotas protegidas por decorator
-- Logout e invalidação de token
+Cada API:
+- Possui rotas próprias
+- Regras de negócio isoladas
+- Validações robustas
+- Controle de erros e logs
 
 ---
 
-## 💼 Regras de Negócio
+## 🧩 Execução Modular das APIs
 
-- Motoristas precisam estar ativos para aceitar viagens
-- Passageiros precisam ter saldo suficiente
-- Viagens podem ser canceladas com estorno financeiro
-- Pagamentos pendentes ou cancelados bloqueiam operações
-- Uso de transações e bloqueio (`FOR UPDATE`) para evitar inconsistências
+As APIs são criadas utilizando o padrão **Application Factory** e podem ser executadas simultaneamente através de **threads**, cada uma em sua própria porta.
 
----
+Essa abordagem:
+- Facilita manutenção
+- Permite escalar cada domínio separadamente
+- Simula um cenário de microserviços
+- Facilita futura migração para Docker/Kubernetes
 
-## 🧪 Testes Automatizados
+### Exemplo de inicialização das APIs
 
-Os testes foram desenvolvidos com **Pytest**, focando em **testes unitários de rotas**.
+```python
+from app1 import (
+    create_api1,
+    create_api2,
+    create_api3,
+    create_api4
+)
+import threading
 
-### Estratégia de testes:
-- Banco de dados **mockado** (MySQL)
-- Conexão real com MySQL **não é utilizada**
-- JWT mockado
-- Chamadas externas (`requests`) mockadas
+def start_api(app, port):
+    app.run(debug=True, port=port, use_reloader=False)
 
-Isso garante testes:
-- rápidos
-- determinísticos
-- independentes de infraestrutura
+def main():
+    app1 = create_api1()
+    app2 = create_api2()
+    app3 = create_api3()
+    app4 = create_api4()
+
+    apis = [
+        (app1, 5001),
+        (app2, 5002),
+        (app3, 5003),
+        (app4, 5004)
+    ]
+
+    for app, port in apis:
+        threading.Thread(
+            target=start_api,
+            args=(app, port),
+            daemon=True
+        ).start()
+
+    input('APIs rodando. Pressione ENTER para sair.')
+
+if __name__ == '__main__':
+    main()
