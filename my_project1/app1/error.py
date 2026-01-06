@@ -3,7 +3,6 @@ from flask_limiter.errors import RateLimitExceeded
 from mysql.connector import errors
 from app1.log import configurar_logging
 import logging
-import requests
 
 
 configurar_logging()
@@ -51,48 +50,6 @@ def tratamento_erro_mysql(erro):
     return jsonify({'erro': 'Erro inesperado no banco SQL!'}), 500
 
 
-
-def tratamento_erro_requests(erro):
-    if isinstance(erro, requests.exceptions.ConnectTimeout):
-        logger.error(f'Timeout ao aguardar conexão com API externa: {str(erro)}')
-        return jsonify({'erro': 'Timeout ao aguardar conexão com API externa!'}), 504
-    
-    if isinstance(erro, requests.exceptions.Timeout):
-        logger.error(f'Timeout ao aguardar resposta da API externa: {str(erro)}')
-        return jsonify({'erro': 'Timeout ao aguardar resposta da API externa!'}), 504
-    
-    if isinstance(erro, requests.exceptions.ConnectionError):
-        logger.error(f'Falha de conexão com API externa: {str(erro)}')
-        return jsonify({'erro': 'Falha de conexão com API externa!'}), 503
-    
-    if isinstance(erro, requests.exceptions.HTTPError):
-        logger.error(f'API externa retornou um erro HTTP: {str(erro)}')
-        return jsonify({'erro': 'API externa retornou um erro HTTP!'}), 502
-    
-    if isinstance(erro, requests.exceptions.JSONDecodeError):
-        logger.error(f'API externa retornou JSON inválido: {str(erro)}')
-        return jsonify({'erro': 'API externa retornou JSON inválido!'}), 502
-    
-    if isinstance(erro, requests.exceptions.TooManyRedirects):
-        logger.error(f'Muitos redirecionamentos na API externa: {str(erro)}')
-        return jsonify({'erro': 'Muitos redirecimentos na API externa!'}), 502
-    
-    if isinstance(erro, requests.exceptions.SSLError):
-        logger.error(f'Erro SSL ao acessar API externa: {str(erro)}')
-        return jsonify({'erro': 'Erro SSL ao acessar API externa!'}), 502
-    
-    if isinstance(erro, requests.exceptions.InvalidURL):
-        logger.error(f'URL inválida ao acessar API externa: {str(erro)}')
-        return jsonify({'erro': 'URL inválida ao acessar API externa!'}), 400
-    
-    if isinstance(erro, requests.exceptions.RequestException):
-        logger.error(f'Erro inesperado requests: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado requests!'}), 500
-    
-    logger.error(f'Erro inesperado ao acessar API externa: {str(erro)}')
-    return jsonify({'erro': 'Erro inesperado ao acessar API externa!'}), 500
-
-
 def register_erro_handlers(app):
     @app.errorhandler(404)
     def rota_nao_encontrado(erro):
@@ -132,4 +89,3 @@ def register_erro_handlers(app):
     def erro_interno(erro):
         logger.error(f'Erro inesperado ao acessar a rota: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao acessar a rota!'}), 500
-    

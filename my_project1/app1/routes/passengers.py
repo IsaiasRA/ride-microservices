@@ -1,14 +1,19 @@
 from flask import Blueprint, jsonify, request
-from app1.auth import (rota_protegida, gerar_tokens,
-                       validar_token, salvar_refresh,
-                       refresh_valido, revogar_todos_refresh,
-                       revogar_refresh, criar_usuario)
+from app1.auth import (rota_protegida,
+                        gerar_tokens,
+                         validar_token,)
+from app1.refresh_tokens import (criar_usuario,
+                                  salvar_refresh,
+                                   refresh_valido,
+                                    revogar_refresh,
+                                    revogar_todos_refresh)
 from app1.database import conexao
-from app1.validation import validar_json
+from app1.validation import validar_json, formatar_nome
 from app1.log import configurar_logging
-from app1.brute_force import (ip_bloqueado, registrar_falha,
-                               limpar_falhas, limiter)
-from datetime import datetime, timedelta, timezone
+from app1.brute_force import (ip_bloqueado,
+                               registrar_falha,
+                                limpar_falhas,
+                                 limiter)
 from decimal import Decimal, InvalidOperation
 import logging
 import bcrypt
@@ -29,14 +34,19 @@ def listar_passageiros():
     try:
         logger.info('Listando passageiros...')
         with conexao() as cursor:
-            cursor.execute('SELECT * FROM passageiros')
+            cursor.execute('''
+                SELECT id, nome, cpf, telefone, saldo, endereco_rua,
+                       endereco_numero, endereco_bairro, endereco_cidade, 
+                       endereco_estado, endereco_cep, km, metodo_pagamento,
+                       criado_em, atualizado_em
+                    FROM passageiros''')
 
             dados = [{
                 'id': p[0],
                 'nome': p[1],
                 'cpf': p[2],
                 'telefone': p[3],
-                'valor': p[4],
+                'saldo': p[4],
                 'endereco_rua': p[5],
                 'endereco_numero': p[6],
                 'endereco_bairro': p[7],
@@ -45,9 +55,8 @@ def listar_passageiros():
                 'endereco_cep': p[10],
                 'km': p[11],
                 'metodo_pagamento': p[12],
-                'pagamento': p[13],
-                'criado_em': p[14],
-                'atualizado_em': p[15]
+                'criado_em': p[13],
+                'atualizado_em': p[14]
             } for p in cursor.fetchall()]
 
             if not dados:
@@ -68,7 +77,12 @@ def buscar_passageiro(id):
     try:
         logger.info(f'Buscando passageiro com id={id}...')
         with conexao() as cursor:
-            cursor.execute('SELECT * FROM passageiros WHERE id = %s', (id,))
+            cursor.execute('''
+                SELECT id, nome, cpf, telefone, saldo, endereco_rua,
+                       endereco_numero, endereco_bairro, endereco_cidade, 
+                       endereco_estado, endereco_cep, km, metodo_pagamento,
+                       criado_em, atualizado_em
+                    FROM passageiros WHERE id = %s''', (id,))
             dado = cursor.fetchone()
 
             if not dado:
@@ -81,7 +95,7 @@ def buscar_passageiro(id):
                 'nome': dado[1],
                 'cpf': dado[2],
                 'telefone': dado[3],
-                'valor': dado[4],
+                'saldo': dado[4],
                 'endereco_rua': dado[5],
                 'endereco_numero': dado[6],
                 'endereco_bairro': dado[7],
@@ -90,9 +104,8 @@ def buscar_passageiro(id):
                 'endereco_cep': dado[10],
                 'km': dado[11],
                 'metodo_pagamento': dado[12],
-                'pagamento': dado[13],
-                'criado_em': dado[14],
-                'atualizado_em': dado[15]
+                'criado_em': dado[13],
+                'atualizado_em': dado[14]
             }), 200
     except Exception as erro:
         logger.error(f'Erro inesperado ao buscar passageiros: {str(erro)}')
@@ -177,7 +190,7 @@ def login():
 
         if faltando:
             logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
-            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"})
+            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
 
         for campo, regra in REGRAS.items():
             try:
@@ -212,7 +225,7 @@ def login():
                 dados['senha'].encode(),
                 senha_hash.encode()
             ):
-                logger.warning('Senha inválida.')
+                logger.warning('Usuario e/ou senha inválida.')
                 registrar_falha(ip)
                 return jsonify({'erro':'Usuário e/ou senha inválido!'}), 401
             
@@ -368,10 +381,10 @@ def adicionar_passageiro():
         REGRAS = {
             'nome': lambda v: isinstance(v, str) and v.strip() != '',
             'cpf': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}', v) is not None,
+                v, str) and re.fullmatch(r'\d{11}', v) is not None,
             'telefone': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\(?\d{2}\)?\s?\d{4,5}-?\d{4}', v) is not None,
-            'valor': lambda v: isinstance(v, Decimal) and v > 0,
+                v, str) and re.fullmatch(r'\d{10,11}', v) is not None,
+            'saldo': lambda v: isinstance(v, Decimal) and v >= 0,
             'endereco_rua': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_numero': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_bairro': lambda v: isinstance(v, str) and v.strip() != '',
@@ -381,9 +394,7 @@ def adicionar_passageiro():
                 v, str) and re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
             'km': lambda v: isinstance(v, Decimal) and v > 0,
             'metodo_pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto'),
-            'pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pago', 'cancelado', 'pendente')
+                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto')
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -401,15 +412,15 @@ def adicionar_passageiro():
                     valor = str(valor).strip()
                 
                 elif campo in ('nome', 'endereco_cidade'):
-                    valor = str(valor).strip().title()
+                    valor = formatar_nome(valor)
                 
-                elif campo in ('pagamento', 'metodo_pagamento'):
+                elif campo in ('metodo_pagamento'):
                     valor = str(valor).strip().lower()
                 
                 elif campo == 'endereco_estado':
                     valor = str(valor).strip().upper()
 
-                elif campo in ('valor', 'km'):
+                elif campo in ('saldo', 'km'):
                     try:
                         valor = Decimal(str(valor)).quantize(Decimal('0.01'))
                     except InvalidOperation:
@@ -425,27 +436,24 @@ def adicionar_passageiro():
                     f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}'}), 400
 
-        br = timezone(timedelta(hours=-3))
-        agora = datetime.now(br).isoformat()
-
         with conexao() as cursor:
             cursor.execute('''
                 INSERT INTO passageiros (
-                    nome, cpf, telefone, valor, endereco_rua, endereco_numero,
+                    nome, cpf, telefone, saldo, endereco_rua, endereco_numero,
                     endereco_bairro, endereco_cidade, endereco_estado,
-                    endereco_cep, km, metodo_pagamento, pagamento,
-                    criado_em, atualizado_em) VALUES 
-                    (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    endereco_cep, km, metodo_pagamento) VALUES 
+                    (%s, %s, %s, %s, %s, %s,
                      %s, %s, %s, %s, %s, %s)
-                ''', (dados['nome'], dados['cpf'], dados['telefone'], dados['valor'],
+                ''', (dados['nome'], dados['cpf'], dados['telefone'], dados['saldo'],
                       dados['endereco_rua'], dados['endereco_numero'],
                       dados['endereco_bairro'], dados['endereco_cidade'],
                       dados['endereco_estado'], dados['endereco_cep'], dados['km'],
-                      dados['metodo_pagamento'], dados['pagamento'], agora, agora))
-
+                      dados['metodo_pagamento'])
+                )
+            
             novo_id = cursor.lastrowid
-            logger.info(f'Passageiro id={novo_id} adicionado com sucesso.')
-            return jsonify({'mensagem': 'Passageiro adicionado com suceso!',
+            logger.info(f'Passageiro {novo_id} adicionado com sucesso.')
+            return jsonify({'mensagem': 'Passageiro adicionado com sucesso!',
                             'id': novo_id}), 201
 
     except Exception as erro:
@@ -463,11 +471,9 @@ def atualizar_passageiro(id):
 
         REGRAS = {
             'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'cpf': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}', v) is not None,
             'telefone': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\(?\d{2}\)?\s?\d{4,5}-?\d{4}', v) is not None,
-            'valor': lambda v: isinstance(v, Decimal) and v > 0,
+                v, str) and re.fullmatch(r'\d{10,11}', v) is not None,
+            'saldo': lambda v: isinstance(v, Decimal) and v >= 0,
             'endereco_rua': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_numero': lambda v: isinstance(v, str) and v.strip() != '',
             'endereco_bairro': lambda v: isinstance(v, str) and v.strip() != '',
@@ -477,9 +483,7 @@ def atualizar_passageiro(id):
                 v, str) and re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
             'km': lambda v: isinstance(v, Decimal) and v > 0,
             'metodo_pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto'),
-            'pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pago', 'cancelado', 'pendente')
+                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto')
         }
 
         enviados = {k: v for k, v in dados.items(
@@ -491,23 +495,21 @@ def atualizar_passageiro(id):
 
         for campo, valor in enviados.items():
             try:
-                valor = dados[campo]
-
-                if campo in ('cpf', 'telefone', 'endereco_rua',
+                if campo in ('telefone', 'endereco_rua',
                              'endereco_numero', 'endereco_bairro',
                              'endereco_cep'):
                     valor = str(valor).strip()
                 
                 elif campo in ('nome', 'endereco_cidade'):
-                    valor = str(valor).strip().title()
+                    valor = formatar_nome(valor)
                 
                 elif campo == 'endereco_estado':
                     valor = str(valor).strip().upper()
                 
-                elif campo in ('pagamento', 'metodo_pagamento'):
+                elif campo in ('metodo_pagamento'):
                     valor = str(valor).strip().lower()
 
-                elif campo in ('valor', 'km'):
+                elif campo in ('saldo', 'km'):
                     try:
                         valor = Decimal(str(valor)).quantize(Decimal('0.01'))
                     except InvalidOperation:
@@ -517,13 +519,12 @@ def atualizar_passageiro(id):
                     raise ValueError
 
                 enviados[campo] = valor
+
             except Exception:
                 logger.warning(
                     f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
-        br = timezone(timedelta(hours=-3))
-        enviados['atualizado_em'] = datetime.now(br).isoformat()
 
         set_sql = ", ".join(f"{campo} = %s" for campo in enviados.keys())
         valores = list(enviados.values())
@@ -554,12 +555,14 @@ def deletar_passageiro(id):
         logger.info(f'Deletando passageiro com id={id}...')
         with conexao() as cursor:
             cursor.execute('DELETE FROM passageiros WHERE id = %s', (id,))
+
             if cursor.rowcount == 0:
                 logger.warning(f'Passageiro {id} não encontrado.')
                 return jsonify({'erro': 'Passageiro não encontrado!'}), 404
 
             logger.info('Recurso deletado com sucesso.')
             return '', 204
+        
     except Exception as erro:
         logger.error(f'Erro inesperado ao deletar passageiro: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao deletar passageiro!'}), 500

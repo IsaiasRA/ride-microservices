@@ -44,23 +44,23 @@ def conexao():
 def inicializador_banco():
     with criar_banco() as cursor:
         cursor.execute('''
-                CREATE DATABASE IF NOT EXISTS meubanco
-                    DEFAULT CHARSET utf8mb4
-                    DEFAULT COLLATE utf8mb4_unicode_ci;''')
-
+            CREATE DATABASE IF NOT EXISTS meubanco
+                DEFAULT CHARSET utf8mb4
+                DEFAULT COLLATE utf8mb4_unicode_ci;''')
+    
 
     with conexao() as cursor:
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                usuario VARCHAR(100) NOT NULL UNIQUE,
-                senha_hash VARCHAR(255) NOT NULL,
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                   
-                INDEX idx_usuario_u (usuario)
-            ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-        ''')
-    
+                CREATE TABLE IF NOT EXISTS usuarios (
+                    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                    usuario VARCHAR(100) NOT NULL UNIQUE,
+                    senha_hash VARCHAR(255) NOT NULL,
+                    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    
+                    INDEX idx_usuario_u (usuario)
+                ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+            ''')
+        
 
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -81,15 +81,15 @@ def inicializador_banco():
                     INDEX idx_refresh_expires (expires_at)
                 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
             ''')
-        
+
 
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS passageiros (
                     id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                     nome VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(nome)) > 0),
-                    cpf VARCHAR(14) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) IN (11, 14)),
+                    cpf CHAR(11) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) = 11),
                     telefone VARCHAR(20) NOT NULL UNIQUE CHECK(LENGTH(TRIM(telefone)) >= 8),
-                    valor DECIMAL(10, 2) NOT NULL CHECK(valor > 0),
+                    saldo DECIMAL(10, 2) DEFAULT 0 CHECK(saldo >= 0),
                     endereco_rua VARCHAR(100) NOT NULL,
                     endereco_numero VARCHAR(10) NOT NULL,
                     endereco_bairro VARCHAR(50) NOT NULL,
@@ -97,12 +97,12 @@ def inicializador_banco():
                     endereco_estado CHAR(2) NOT NULL CHECK(LENGTH(TRIM(endereco_estado)) = 2),
                     endereco_cep VARCHAR(10) NOT NULL CHECK(LENGTH(TRIM(endereco_cep)) >= 8),
                     km DECIMAL(6, 2) NOT NULL CHECK(km > 0),
-                    metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                    pagamento ENUM('pago', 'cancelado', 'pendente') DEFAULT 'pendente',
+                    metodo_pagamento ENUM(
+                    'pix', 'credito', 'debito', 'boleto') NOT NULL,
                     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE = InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+                ) ENGINE = InnoDB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
             ''')
 
         cursor.execute(
@@ -123,12 +123,12 @@ def inicializador_banco():
                     modelo_carro VARCHAR(50) NOT NULL,
                     ano_carro INT UNSIGNED NOT NULL CHECK(ano_carro >= 1980),
                     status ENUM('ativo', 'suspenso', 'bloqueado') DEFAULT 'ativo',
-                    valor_passagem DECIMAL(5, 2) UNSIGNED DEFAULT 2.50,
+                    valor_passagem DECIMAL(5, 2) UNSIGNED NOT NULL,
                     quantia DECIMAL(10, 2) UNSIGNED DEFAULT 0 CHECK(quantia >= 0),
                     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                         ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+                ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
             ''')
 
         cursor.execute(
@@ -162,8 +162,8 @@ def inicializador_banco():
                         CHECK(LENGTH(TRIM(endereco_cep)) >= 8),
                     valor_por_km DECIMAL(5, 2) NOT NULL CHECK(valor_por_km > 0),
                     total_viagem DECIMAL(10, 2) NOT NULL CHECK(total_viagem > 0),
-                    metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                    pagamento ENUM('pago', 'cancelado', 'pendente') NOT NULL,
+                    metodo_pagamento ENUM(
+                    'pix', 'credito', 'debito', 'boleto') NOT NULL,
                     status ENUM('confirmada', 'cancelada') DEFAULT 'confirmada',
                     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -171,12 +171,12 @@ def inicializador_banco():
                     CONSTRAINT fk_viagens_passageiro
                     FOREIGN KEY (id_passageiro)
                     REFERENCES passageiros(id)
-                    ON DELETE CASCADE ON UPDATE CASCADE,
+                    ON DELETE RESTRICT ON UPDATE RESTRICT,
 
                     CONSTRAINT fk_viagens_motoristas
                         FOREIGN KEY (id_motorista)
                         REFERENCES motoristas(id)
-                        ON DELETE CASCADE ON UPDATE CASCADE,
+                        ON DELETE RESTRICT ON UPDATE RESTRICT,
 
                     INDEX idx_viagens_passageiro (id_passageiro),
                     INDEX idx_viagens_motorista (id_motorista)
@@ -203,7 +203,7 @@ def inicializador_banco():
                     remetente VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(remetente)) > 0),
                     recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                     metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                    pagamento ENUM('pago', 'cancelado', 'pendente') NOT NULL,
+                    pagamento ENUM('pago', 'cancelado', 'pendente') DEFAULT 'pago',
                     status ENUM('concluido', 'cancelado') DEFAULT 'concluido',
                     valor_viagem DECIMAL(10, 2) NOT NULL CHECK(valor_viagem > 0),
                     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -228,3 +228,4 @@ def inicializador_banco():
         if not cursor.fetchone():
             cursor.execute(
                 'CREATE INDEX idx_registro_recebedor ON registros_pagamento(recebedor)')
+

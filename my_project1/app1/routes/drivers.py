@@ -1,10 +1,9 @@
 from flask import Blueprint, jsonify
 from app1.auth import rota_protegida
 from app1.database import conexao
-from app1.validation import validar_json
+from app1.validation import validar_json, formatar_nome
 from app1.log import configurar_logging
 from app1.brute_force import limiter
-from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import logging
 import re
@@ -24,7 +23,11 @@ def listar_motoristas():
     try:
         logger.info('Listando motoristas...')
         with conexao() as cursor:
-            cursor.execute('SELECT * FROM motoristas')
+            cursor.execute('''
+                SELECT id, nome, cnh, telefone, categoria_cnh, placa,
+                       modelo_carro, ano_carro, status, valor_passagem,
+                       quantia, criado_em, atualizado_em
+                    FROM motoristas''')
             dados = [{
                 'id': m[0],
                 'nome': m[1],
@@ -60,7 +63,11 @@ def buscar_motorista(id):
     try:
         logger.info(f'Buscando motorista com id={id}...')
         with conexao() as cursor:
-            cursor.execute('SELECT * FROM motoristas WHERE id = %s', (id,))
+            cursor.execute('''
+                SELECT id, nome, cnh, telefone, categoria_cnh, placa,
+                       modelo_carro, ano_carro, status, valor_passagem,
+                       quantia, criado_em, atualizado_em
+                    FROM motoristas WHERE id = %s''', (id,))
             dado = cursor.fetchone()
 
             if not dado:
@@ -107,7 +114,8 @@ def adicionar_motorista():
             'placa': lambda v: isinstance(v, str) and re.fullmatch(
                 r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v.upper()) is not None,
             'modelo_carro': lambda v: isinstance(v, str) and v.strip() != '',
-            'ano_carro': lambda v: isinstance(v, int) and v >= 1980
+            'ano_carro': lambda v: isinstance(v, int) and v >= 1980,
+            'valor_passagem': lambda v: isinstance(v, Decimal) and v > 0
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -124,10 +132,16 @@ def adicionar_motorista():
                     valor = str(valor).strip()
 
                 elif campo == 'nome':
-                    valor = str(valor).strip().title()
+                    valor = formatar_nome(valor)
                 
                 elif campo == 'categoria_cnh':
                     valor = str(valor).strip().upper()
+                
+                elif campo == 'valor_passagem':
+                    try:
+                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
+                    except InvalidOperation:
+                        raise ValueError
 
                 elif campo == 'ano_carro':
                     valor = int(valor)
@@ -142,17 +156,15 @@ def adicionar_motorista():
                     f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
-        br = timezone(timedelta(hours=-3))
-        agora = datetime.now(br).isoformat()
-
         with conexao() as cursor:
             cursor.execute('''
-                INSERT INTO motoristas (nome, cnh, telefone, categoria_cnh,
-                     placa, modelo_carro, ano_carro, criado_em, atualizado_em)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                INSERT INTO motoristas
+                    (nome, cnh, telefone, categoria_cnh,
+                     placa, modelo_carro, ano_carro)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s)''',
                            (dados['nome'], dados['cnh'], dados['telefone'],
                             dados['categoria_cnh'], dados['placa'], dados['modelo_carro'],
-                               dados['ano_carro'], agora, agora))
+                               dados['ano_carro']))
 
             novo_id = cursor.lastrowid
             logger.info(f'Motorista id={novo_id} adicionado com sucesso.')
@@ -175,7 +187,6 @@ def atualizar_motorista(id):
 
         REGRAS = {
             'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'cnh': lambda v: isinstance(v, str) and len(v.strip()) == 11,
             'telefone': lambda v: isinstance(v, str) and len(v.strip()) >= 8,
             'categoria_cnh': lambda v: isinstance(
                 v, str) and v.strip().upper() in ('A', 'B', 'C', 'D', 'E'),
@@ -189,8 +200,7 @@ def atualizar_motorista(id):
             'quantia': lambda v: isinstance(v, Decimal) and v >= 0
         }
 
-        enviados = {k: v for k, v in dados.items(
-        ) if k in REGRAS and v is not None}
+        enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
 
         if not enviados:
             logger.warning('Nenhum campo enviado para a atualização.')
@@ -198,13 +208,11 @@ def atualizar_motorista(id):
 
         for campo, valor in enviados.items():
             try:
-                valor = dados[campo]
-
                 if campo in ('cnh', 'telefone', 'placa', 'modelo_carro'):
                     valor = str(valor).strip()
 
                 elif campo == 'nome':
-                    valor = str(valor).strip().title()
+                    valor = formatar_nome(valor)
                 
                 elif campo == 'categoria_cnh':
                     valor = str(valor).strip().upper()
@@ -224,15 +232,13 @@ def atualizar_motorista(id):
                 if not REGRAS[campo](valor):
                     raise ValueError
 
-                dados[campo] = valor
-                
+                enviados[campo] = valor
+
             except Exception:
                 logger.warning(
                     f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
-        br = timezone(timedelta(hours=-3))
-        enviados['atualizado_em'] = datetime.now(br).isoformat()
 
         set_sql = ", ".join(f"{campo} = %s" for campo in enviados.keys())
         valores = list(enviados.values())
@@ -255,21 +261,32 @@ def atualizar_motorista(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar motorista!'}), 500
 
 
-@motoristas_bp.route('/<int:id>', methods=['DELETE'])
+@motoristas_bp.route('/<int:id>', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida
 def deletar_motorista(id):
     try:
-        logger.info(f'Deletando motorista com id={id}...')
+        logger.info(f'Bloqueando motorista com id={id}...')
         with conexao() as cursor:
-            cursor.execute('DELETE FROM motoristas WHERE id = %s', (id,))
+            cursor.execute('SELECT status FROM motoristas WHERE id = %s', (id,))
+            motorista = cursor.fetchone()
 
-            if cursor.rowcount == 0:
+            if not motorista:
                 logger.warning(f'Motorista id={id} não encontrado.')
                 return jsonify({'erro': 'Motorista não encontrado!'}), 404
+            
+            if motorista[0] == 'bloqueado':
+                logger.warning(f'Motorista id={id} já está bloqueado.')
+                return '', 204
+            
+            cursor.execute('''
+                UPDATE motoristas SET
+                     status = "bloqueado" WHERE id = %s''',
+                     (id,))
 
-            logger.info('Recurso deletado com sucesso.')
+            logger.info('Motorista bloqueado com sucesso.')
             return '', 204
+        
     except Exception as erro:
         logger.error(f'Erro inesperado ao deletar motorista: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao deletar motorista!'}), 500

@@ -1,8 +1,7 @@
 from flask import Flask, jsonify, request
 from contextlib import closing, contextmanager
 from app1.error import (tratamento_erro_mysql,
-                         register_erro_handlers,
-                          tratamento_erro_requests)
+                         register_erro_handlers)
 from app1.log import configurar_logging
 from app1.validation import validar_json, formatar_nome
 from app1.auth import (gerar_tokens,
@@ -20,7 +19,6 @@ from app1.brute_force import (ip_bloqueado,
 from decimal import Decimal, InvalidOperation
 import threading
 import logging
-import requests
 import bcrypt
 import re
 import mysql.connector
@@ -324,7 +322,7 @@ def buscar_passageiro(id):
                 logger.warning(f'Passageiro {id} não encontrado.')
                 return jsonify({'erro': 'Passageiro não encontrado!'}), 404
 
-            logger.info(f'Busca de passageiro com id={id} bem-sucedida.')
+            logger.info(f'Busca de passageiro bem-sucedida.')
             return jsonify({
                 'id': dado[0],
                 'nome': dado[1],
@@ -687,7 +685,7 @@ def adicionar_passageiro():
                 )
             
             novo_id = cursor.lastrowid
-            logger.info(f'Passageiro {novo_id} adicionado com sucesso.')
+            logger.info(f'Passageiro id={novo_id} adicionado com sucesso.')
             return jsonify({'mensagem': 'Passageiro adicionado com sucesso!',
                             'id': novo_id}), 201
 
@@ -953,11 +951,11 @@ def adicionar_motorista():
             cursor.execute('''
                 INSERT INTO motoristas
                     (nome, cnh, telefone, categoria_cnh,
-                     placa, modelo_carro, ano_carro)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+                     placa, modelo_carro, ano_carro, valor_passagem)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
                            (dados['nome'], dados['cnh'], dados['telefone'],
                             dados['categoria_cnh'], dados['placa'], dados['modelo_carro'],
-                               dados['ano_carro']))
+                               dados['ano_carro'], dados['valor_passagem']))
 
             novo_id = cursor.lastrowid
             logger.info(f'Motorista id={novo_id} adicionado com sucesso.')
@@ -1001,7 +999,7 @@ def atualizar_motorista(id):
 
         for campo, valor in enviados.items():
             try:
-                if campo in ('cnh', 'telefone', 'placa', 'modelo_carro'):
+                if campo in ('telefone', 'placa', 'modelo_carro'):
                     valor = str(valor).strip()
 
                 elif campo == 'nome':
@@ -1074,7 +1072,7 @@ def deletar_motorista(id):
             
             cursor.execute('''
                 UPDATE motoristas SET
-                     status = "bloqueado" WHERE id = %s''',
+                     status = 'bloqueado' WHERE id = %s''',
                      (id,))
 
             logger.info('Motorista bloqueado com sucesso.')
@@ -1222,101 +1220,50 @@ def adicionar_viagem():
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
         with conexao() as cursor:
-            cursor.execute('SELECT saldo FROM passageiros WHERE id = %s FOR UPDATE',
+            cursor.execute('''
+                SELECT nome, saldo, endereco_rua, endereco_numero,
+                       endereco_bairro, endereco_cidade, endereco_estado,
+                       endereco_cep, km, metodo_pagamento
+                    FROM passageiros WHERE id = %s FOR UPDATE''',
                            (dados['id_passageiro'],))
 
-            saldo = cursor.fetchone()
-            if not saldo:
+            passageiro = cursor.fetchone()
+            if not passageiro:
                 logger.warning(
                     f"Passageiro {dados['id_passageiro']} não encontrado.")
                 return jsonify({'erro': 'Passageiro não encontrado!'}), 404
 
-            cursor.execute('SELECT id FROM motoristas WHERE id = %s',
-                           (dados['id_motorista'],))
+            cursor.execute('''
+                SELECT nome, valor_passagem, status
+                    FROM motoristas WHERE id = %s''',
+                    (dados['id_motorista'],))
+            
+            motorista = cursor.fetchone()
 
-            if not cursor.fetchone():
+            if not motorista:
                 logger.warning(
                     f"Motorista {dados['id_motorista']} não encontrado.")
                 return jsonify({'erro': 'Motorista não encontrado!'}), 404
 
-            token = request.headers.get('Authorization')
-
             try:
-                resp_passa = requests.get(
-                    f"http://127.0.0.1:5001/passageiros/{dados['id_passageiro']}",
-                    timeout=3, headers={'Authorization': token})
-                resp_passa.raise_for_status()
-
-                resp_moto = requests.get(
-                    f"http://127.0.0.1:5002/motoristas/{dados['id_motorista']}",
-                    timeout=3, headers={'Authorization': token})
-                resp_moto.raise_for_status()
-            except Exception as erro:
-                return tratamento_erro_requests(erro)
-
-            try:
-                passa_obj = resp_passa.json()
-                moto_obj = resp_moto.json()
-            except ValueError as erro_json:
-                logger.warning(
-                    f'Erro ao decodificar API externa: {str(erro_json)}')
-                return jsonify({'erro': 'Erro ao decodificar API externa!'}), 400
-
-            passa_payload = passa_obj[0] if isinstance(
-                passa_obj, list) else passa_obj
-
-            moto_payload = moto_obj[0] if isinstance(
-                moto_obj, list) else moto_obj
-
-            if not isinstance(passa_payload, dict):
-                logger.warning(
-                    f'Formato inválido de passageiro: {passa_payload}')
-                return jsonify({'erro': 'Formato inválido de passageiro!'}), 502
-
-            if not isinstance(moto_payload, dict):
-                logger.warning(
-                    f'Formato inválido de motorista: {moto_payload}')
-                return jsonify({'erro': 'Formato inválido de motorista!'}), 502
-
-            campos_obrigatorio_passageiro = ['nome', 'endereco_rua', 'endereco_numero',
-                                             'endereco_bairro', 'endereco_cidade',
-                                             'endereco_estado', 'endereco_cep', 'km',
-                                             'metodo_pagamento']
-
-            for campo in campos_obrigatorio_passageiro:
-                valor = passa_payload.get(campo)
-                if valor is None or str(valor).strip() == '':
-                    logger.warning(f'Campo obrigatório vázio: {campo}')
-                    return jsonify({'erro': f'Campo obrigatório vázio: {campo}'}), 400
-
-            campos_obrigatorios_motorista = [
-                'nome', 'valor_passagem', 'status']
-
-            for campo in campos_obrigatorios_motorista:
-                valor = moto_payload.get(campo)
-                if valor is None or str(valor).strip() == '':
-                    logger.warning(f'Campo obrigatório vázio: {campo}')
-                    return jsonify({'erro': f'Campo obrigatório vázio: {campo}'}), 400
-
-            try:
-                nome_passageiro = formatar_nome(passa_payload.get('nome'))
-                nome_motorista = formatar_nome(moto_payload.get('nome'))
-                endereco_rua = str(passa_payload.get('endereco_rua')).strip()
-                endereco_numero = str(passa_payload.get('endereco_numero')).strip()
-                endereco_bairro = str(passa_payload.get('endereco_bairro')).strip()
-                endereco_cidade = formatar_nome(passa_payload.get('endereco_cidade'))
-                endereco_estado = str(passa_payload.get('endereco_estado')).strip().upper()
-                endereco_cep = str(passa_payload.get('endereco_cep')).strip()
-                valor_por_km = Decimal(str(moto_payload.get('valor_passagem'))
-                                    ).quantize(Decimal('0.01'))
-                km = Decimal(str(passa_payload.get('km'))).quantize(Decimal('0.01'))
-                metodo_pagamento = str(passa_payload.get('metodo_pagamento')).strip().lower()
-                status_moto = str(moto_payload.get('status')).strip().lower()
+                nome_passageiro = formatar_nome(passageiro[0])
+                nome_motorista = formatar_nome(motorista[0])
+                endereco_rua = str(passageiro[2]).strip()
+                endereco_numero = str(passageiro[3]).strip()
+                endereco_bairro = str(passageiro[4]).strip()
+                endereco_cidade = formatar_nome(passageiro[5])
+                endereco_estado = str(passageiro[6]).strip().upper()
+                endereco_cep = str(passageiro[7]).strip()
+                saldo = Decimal(str(passageiro[1])).quantize(Decimal('0.01'))
+                km = Decimal(str(passageiro[8])).quantize(Decimal('0.01'))
+                valor_passagem = Decimal(str(motorista[1])).quantize(Decimal('0.01'))
+                metodo_pagamento = str(passageiro[9]).strip().lower()
+                status_moto = str(motorista[2]).strip().lower()
             except (ValueError, TypeError, InvalidOperation) as erro:
-                logger.warning(f'Erro ao extrair campo da API: {str(erro)}')
-                return jsonify({'erro': 'Erro ao extrair campo da API!'}), 400
+                logger.warning(f'Erro ao coletar dados em banco: {str(erro)}')
+                return jsonify({'erro': 'Erro ao coletar dados em banco SQL!'}), 400
 
-            if valor_por_km <= 0:
+            if valor_passagem <= 0:
                 logger.warning(f'Valor da passagem não pode ser negativo.')
                 return jsonify({'erro': 'Valor da passagem não pode ser negativo!'}), 400
 
@@ -1328,11 +1275,11 @@ def adicionar_viagem():
                 logger.warning(
                     f'Motorista suspenso ou bloqueado não pode fazer viagens.')
                 return jsonify(
-                    {'erro': 'Motorista suspenso ou bloqueado não pode fazer viagens!'}), 400
+                    {'erro': 'Motorista suspenso ou bloqueado não pode fazer viagens!'}), 409
 
-            total_viagem = (valor_por_km * km).quantize(Decimal('0.01'))
+            total_viagem = (valor_passagem * km).quantize(Decimal('0.01'))
 
-            if saldo[0] < total_viagem:
+            if saldo < total_viagem:
                 logger.warning('Saldo insuficiente.')
                 return jsonify({'erro': 'Saldo insuficiente!'}), 400
 
@@ -1352,7 +1299,7 @@ def adicionar_viagem():
                                  %s, %s, %s, %s, %s, %s)
                     ''', (dados['id_passageiro'], dados['id_motorista'], nome_passageiro,
                           nome_motorista, endereco_rua, endereco_numero, endereco_bairro,
-                          endereco_cidade, endereco_estado, endereco_cep, valor_por_km,
+                          endereco_cidade, endereco_estado, endereco_cep, valor_passagem,
                           total_viagem, metodo_pagamento))
             
             novo_id = cursor.lastrowid
@@ -1517,8 +1464,10 @@ def adicionar_pagamento():
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
         with conexao() as cursor:
-            cursor.execute(
-                'SELECT id FROM viagens WHERE id = %s',
+            cursor.execute('''
+                SELECT nome_passageiro, nome_motorista,
+                       metodo_pagamento, total_viagem, status
+                    FROM viagens WHERE id = %s FOR UPDATE''',
                 (dados['id_viagem'],))
 
             viagem = cursor.fetchone()
@@ -1527,61 +1476,28 @@ def adicionar_pagamento():
                 logger.warning(
                     f"Viagem id={dados['id_viagem']} não encontrada.")
                 return jsonify({'erro': 'Viagem não encontrada!'}), 404
-
-            token = request.headers.get('Authorization')
-
-            try:
-                resp_viagem = requests.get(
-                    f"http://127.0.0.1:5003/viagens/{dados['id_viagem']}",
-                    timeout=3, headers={'Authorization': token})
-                resp_viagem.raise_for_status()
-            except Exception as erro:
-                return tratamento_erro_requests(erro)
+            
+            cursor.execute('''
+                SELECT id FROM registros_pagamento
+                    WHERE id_viagem = %s''', (dados['id_viagem'],))
+            
+            if cursor.fetchone():
+                logger.warning(f"Pagamento id={dados['id_viagem']} já existe.")
+                return jsonify({'erro': 'Pagamento de viagem já está registrado!'}), 409
 
             try:
-                viagem_obj = resp_viagem.json()
-            except ValueError as erro_json:
-                logger.warning(
-                    f'Erro ao decodificar API externa: {str(erro_json)}')
-                return jsonify({'erro': 'Erro ao decodificar API externa!'}), 400
-
-            viagem_payload = viagem_obj[0] if isinstance(
-                viagem_obj, list) else viagem_obj
-
-            if not isinstance(viagem_payload, dict):
-                logger.warning(f'Formato inválido de registros de pagamentos.')
-                return jsonify(
-                    {'erro': 'Requisição da API externa não é um dicionário!'}), 400
-
-            campos_obrigatorios = ['nome_passageiro', 'nome_motorista', 'metodo_pagamento',
-                                   'status', 'total_viagem']
-
-            for campo in campos_obrigatorios:
-                valor = viagem_payload.get(campo)
-                if valor is None or str(valor).strip() == '':
-                    logger.warning(f"Campo obrigatório vázio: {campo}")
-                    return jsonify({'erro': f"Campo obrigatório vázio: {campo}"}), 400
-
-            try:
-                remetente = formatar_nome(viagem_payload.get('nome_passageiro'))
-                recebedor = formatar_nome(viagem_payload.get('nome_motorista'))
-                metodo_pagamento = str(
-                    viagem_payload.get('metodo_pagamento')).strip().lower()
-                status_viagem = str(viagem_payload.get('status')).strip().lower()
-                valor_viagem = Decimal(
-                    str(viagem_payload.get('total_viagem'))).quantize(Decimal('0.01'))
+                remetente = formatar_nome(viagem[0])
+                recebedor = formatar_nome(viagem[1])
+                metodo_pagamento = str(viagem[2]).strip().lower()
+                valor_viagem = Decimal(str(viagem[3])).quantize(Decimal('0.01'))
+                status_viagem = str(viagem[4]).strip().lower()
             except (ValueError, TypeError, InvalidOperation) as erro:
-                logger.warning(
-                    f'Erro ao extrair campos da API externa: {str(erro)}')
-                return jsonify({'erro': 'Erro ao extrair campos da API externa!'}), 400
-
-            if status_viagem == 'cancelada':
-                logger.warning(f'Viagem cancelada não pode ser registrada.')
+                logger.warning(f'Erro ao coletar dados em banco: {str(erro)}')
+                return jsonify({'erro': 'Erro ao coletar dados em banco SQL!'}), 400
+            
+            if status_viagem != 'confirmada':
+                logger.warning('Viagem cancelada.')
                 return jsonify({'erro': 'Viagem cancelada não pode ser registrada!'}), 400
-
-            if valor_viagem <= 0:
-                logger.warning(f'Valor da viagem negativa.')
-                return jsonify({'erro': 'Valor da viagem não pode ser negativo!'}), 400
 
             cursor.execute('''
                     INSERT INTO registros_pagamento
@@ -1595,7 +1511,8 @@ def adicionar_pagamento():
             logger.info(
                 f'Registro de pagamento id={novo_id} adicionado com sucesso.')
             return jsonify(
-                {'mensagem': 'Registro de pagamento adicionado com sucesso!'}), 201
+                {'mensagem': 'Registro de pagamento adicionado com sucesso!',
+                 'id': novo_id}), 201
 
     except Exception as erro:
         logger.error(

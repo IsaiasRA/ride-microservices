@@ -46,3 +46,5 @@ def formatar_nome(nome: str):
             nome_formatado.append(p)
         else:
             nome_formatado.append(p.capitalize())
+    
+    return ' '.join(nome_formatado)
