@@ -182,65 +182,6 @@ def adicionar_pagamento():
             {'erro': 'Erro inesperado ao adicionar registro de pagamento!'}), 500
 
 
-@registros_pagamento_bp.route('/<int:id>', methods=['PATCH'])
-@limiter.limit('100 per hour')
-@rota_protegida
-def atualizar_registro_pagamento(id):
-    try:
-        logger.info(f'Atualizando registro de pagamento com id={id}...')
-
-        dados = validar_json()
-
-        REGRAS = {
-            'pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pago', 'pendente', 'cancelado'),
-            'status': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('concluido', 'cancelado')
-        }
-
-        enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
-
-        if not enviados:
-            logger.warning('Nenhum campo enviado para a atualização.')
-            return jsonify({'erro': 'Envie ao menos um campo para atualizar!'}), 400
-
-        for campo, valor in enviados.items():
-            try:
-                valor = str(valor).strip().lower()
-
-                if not REGRAS[campo](valor):
-                    raise ValueError
-
-                enviados[campo] = valor
-
-            except Exception:
-                logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
-                return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
-            
-        set_sql = ", ".join(f"{campo} = %s" for campo in enviados.keys())
-        valores = list(enviados.values()) + [id]
-        
-        query = f"UPDATE registros_pagamento SET {set_sql} WHERE id = %s"
-        with conexao() as cursor:
-            cursor.execute(query, valores)
-
-            if cursor.rowcount == 0:
-                logger.warning(f'Registro id={id} não encontrado.')
-                return jsonify({'erro': 'Registro de pagamento não encontrado!'}), 404
-
-            logger.info(f'Registro de pagamento id={id} atualizado com sucesso.')
-            return jsonify({
-                'mensagem': 'Registro de pagamento',
-                'atualizado': enviados
-            }), 200
-
-    except Exception as erro:
-        logger.error(
-            f'Erro inesperado ao atualizar registro de pagamento: {str(erro)}')
-        return jsonify(
-            {'erro': 'Erro inesperado ao atualizar registro de pagamento!'}), 500
-
-
 @registros_pagamento_bp.route('/<int:id>/cancelar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida
