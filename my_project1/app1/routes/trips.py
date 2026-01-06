@@ -147,7 +147,7 @@ def adicionar_viagem():
 
         with conexao() as cursor:
             cursor.execute('''
-                SELECT nome_passageiro, saldo, endereco_rua, endereco_numero,
+                SELECT nome, saldo, endereco_rua, endereco_numero,
                        endereco_bairro, endereco_cidade, endereco_estado,
                        endereco_cep, km, metodo_pagamento
                     FROM passageiros WHERE id = %s FOR UPDATE''',
@@ -160,7 +160,7 @@ def adicionar_viagem():
                 return jsonify({'erro': 'Passageiro não encontrado!'}), 404
 
             cursor.execute('''
-                SELECT nome_motorista, valor_passagem, status
+                SELECT nome, valor_passagem, status
                     FROM motoristas WHERE id = %s''',
                     (dados['id_motorista'],))
             

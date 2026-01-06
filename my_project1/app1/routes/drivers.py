@@ -160,11 +160,11 @@ def adicionar_motorista():
             cursor.execute('''
                 INSERT INTO motoristas
                     (nome, cnh, telefone, categoria_cnh,
-                     placa, modelo_carro, ano_carro)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+                     placa, modelo_carro, ano_carro, valor_passagem)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
                            (dados['nome'], dados['cnh'], dados['telefone'],
                             dados['categoria_cnh'], dados['placa'], dados['modelo_carro'],
-                               dados['ano_carro']))
+                               dados['ano_carro'], dados['valor_passagem']))
 
             novo_id = cursor.lastrowid
             logger.info(f'Motorista id={novo_id} adicionado com sucesso.')
