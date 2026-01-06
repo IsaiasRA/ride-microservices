@@ -17,6 +17,28 @@ The system was designed with **clear domain separation**, well-defined business 
 - Threading (Simultaneous API execution)
 
 ---
+## 🧪 Automated Testing
+
+The project includes **automated tests using Pytest**, ensuring the reliability of business rules and API behavior.
+
+Tests cover:
+- Route responses and HTTP status codes
+- Business rule validations (e.g. cancellation rules, invalid states)
+- Error handling for non-existent resources
+- Idempotency of critical operations (e.g. canceling trips or payments more than once)
+
+### Testing Tools
+- Pytest
+- Flask test client
+- Isolated test database
+- Transactional tests with rollback
+
+### Running Tests
+
+From the project root directory:
+
+- cd my_project1
+- pytest
 
 ## 🧠 Architecture Overview
 
