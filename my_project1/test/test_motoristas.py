@@ -1,7 +1,5 @@
 from unittest.mock import patch
-from decimal import Decimal
 from test.test_database import fake_conexao
-
 
 
 def test_listar_motoristas_sem_token(client_app2):
@@ -23,7 +21,7 @@ def test_listar_motoristas(client_app2, db_conexao, auth_headers):
         """)
 
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.get('/motoristas', headers=auth_headers)
 
@@ -33,7 +31,7 @@ def test_listar_motoristas(client_app2, db_conexao, auth_headers):
 
 def test_listar_motoristas_vazio(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.get('/motoristas', headers=auth_headers)
 
@@ -41,7 +39,7 @@ def test_listar_motoristas_vazio(client_app2, db_conexao, auth_headers):
     assert resp.json == []
 
 
-def test_buscar_motoristas(client_app2, db_conexao, auth_headers):
+def test_buscar_motorista_por_id(client_app2, db_conexao, auth_headers):
     with fake_conexao() as cursor:
         cursor.execute("""
             INSERT INTO motoristas (
@@ -55,7 +53,7 @@ def test_buscar_motoristas(client_app2, db_conexao, auth_headers):
         novo_id = cursor.lastrowid
 
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.get(f'/motoristas/{novo_id}', headers=auth_headers)
 
@@ -63,9 +61,9 @@ def test_buscar_motoristas(client_app2, db_conexao, auth_headers):
         assert resp.json['nome'] == 'Caio'
 
 
-def test_buscar_motorista_inexistente(client_app2, db_conexao, auth_headers):
+def test_buscar_motorista_por_id_inexistente(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.get('/motoristas/99999', headers=auth_headers)
 
@@ -75,7 +73,7 @@ def test_buscar_motorista_inexistente(client_app2, db_conexao, auth_headers):
 
 def test_adicionar_motoristas(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.post(
             '/motoristas',
@@ -100,7 +98,7 @@ def test_adicionar_motoristas(client_app2, db_conexao, auth_headers):
 
 def test_adicionar_motorista_campo_faltando(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.post(
             '/motoristas',
@@ -117,7 +115,7 @@ def test_adicionar_motorista_campo_faltando(client_app2, db_conexao, auth_header
 
 def test_adicionar_motorista_valor_negativo(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.post(
             '/motoristas',
@@ -136,9 +134,9 @@ def test_adicionar_motorista_valor_negativo(client_app2, db_conexao, auth_header
             }
         )
 
-    assert resp.status_code == 201
-    assert 'id' in resp.json
-    
+    assert resp.status_code == 400
+    assert 'erro' in resp.json
+
 
 def test_atualizar_motorista(client_app2, db_conexao, auth_headers):
     with fake_conexao() as cursor:
@@ -147,14 +145,14 @@ def test_atualizar_motorista(client_app2, db_conexao, auth_headers):
                 nome, cnh, telefone, categoria_cnh, placa,
                 modelo_carro, ano_carro, status, valor_passagem, quantia
             ) VALUES (
-                'Pedro', '74356353541', '6599452621', 'A',
+                'Pedro', '18963027897', '6599452621', 'A',
                 '0PO1UI9', 'Ford Ranger', 2023, 'ativo', 40, 400
             )
         """)
         novo_id = cursor.lastrowid
 
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.put(
             f'/motoristas/{novo_id}',
@@ -166,11 +164,12 @@ def test_atualizar_motorista(client_app2, db_conexao, auth_headers):
         )
 
         assert resp.status_code == 200
+        assert 'mensagem' in resp.json
     
 
 def test_atualizar_motorista_inexistente(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
         resp = client_app2.put(
             '/motoristas/99999',
@@ -181,9 +180,10 @@ def test_atualizar_motorista_inexistente(client_app2, db_conexao, auth_headers):
         )
 
     assert resp.status_code == 404
+    assert 'erro' in resp.json
 
 
-def test_deletar_motorista(client_app2, db_conexao, auth_headers):
+def test_bloquear_motorista(client_app2, db_conexao, auth_headers):
     with fake_conexao() as cursor:
         cursor.execute("""
             INSERT INTO motoristas (
@@ -191,15 +191,15 @@ def test_deletar_motorista(client_app2, db_conexao, auth_headers):
                 modelo_carro, ano_carro, status, valor_passagem, quantia
             ) VALUES (
                 'Gustavo', '95958585981', '11999280192', 'B',
-                'ABC1D23', 'Nissan Versa', 2020, 'suspenso', 35, 200
+                'ABC1D23', 'Nissan Versa', 2020, 'ativo', 35, 200
             )
         """)
         novo_id = cursor.lastrowid
 
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
-        resp = client_app2.delete(
+        resp = client_app2.patch(
             f'/motoristas/{novo_id}',
             headers=auth_headers
         )
@@ -207,10 +207,11 @@ def test_deletar_motorista(client_app2, db_conexao, auth_headers):
         assert resp.status_code == 204
 
 
-def test_deletar_motorista_inexistente(client_app2, db_conexao, auth_headers):
+def test_bloquear_motorista_inexistente(client_app2, db_conexao, auth_headers):
     with patch('main.conexao', db_conexao), \
-         patch('app1.auth.validar_token', return_value=({'sub': 1}, 200)):
+         patch('app.auth.validar_token', return_value=({'sub': 1}, 200)):
 
-        resp = client_app2.delete('/motoristas/99999', headers=auth_headers)
+        resp = client_app2.patch('/motoristas/99999', headers=auth_headers)
 
     assert resp.status_code == 404
+    assert 'erro' in resp.json

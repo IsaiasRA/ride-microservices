@@ -201,7 +201,7 @@ def cancelar_registro_pagamento(id):
             
             if registro[1] == 'cancelado':
                 logger.warning(f'Registro id={id} já foi cancelado.')
-                return '', 204
+                return jsonify({'erro': 'Registro já está cancelado!'}), 409
 
             cursor.execute(
                 '''SELECT id_passageiro, id_motorista, total_viagem, status
@@ -215,8 +215,7 @@ def cancelar_registro_pagamento(id):
             
             if viagem[3] != 'cancelada':
                 logger.warning(f'Viagem não foi cancelada.')
-                return jsonify(
-                    {'erro': 'Viagem precisa estar cancelada para realizar estorno!'}), 400
+                return '', 204
            
             cursor.execute(
                 'SELECT saldo FROM passageiros WHERE id = %s FOR UPDATE',

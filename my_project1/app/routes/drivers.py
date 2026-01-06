@@ -281,7 +281,7 @@ def deletar_motorista(id):
             
             cursor.execute('''
                 UPDATE motoristas SET
-                     status = "bloqueado" WHERE id = %s''',
+                     status = 'bloqueado' WHERE id = %s''',
                      (id,))
 
             logger.info('Motorista bloqueado com sucesso.')
