@@ -120,15 +120,6 @@ with conexao() as cursor:
                 cpf CHAR(11) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) = 11),
                 telefone VARCHAR(20) NOT NULL UNIQUE CHECK(LENGTH(TRIM(telefone)) >= 8),
                 saldo DECIMAL(10, 2) DEFAULT 0 CHECK(saldo >= 0),
-                endereco_rua VARCHAR(100) NOT NULL,
-                endereco_numero VARCHAR(10) NOT NULL,
-                endereco_bairro VARCHAR(50) NOT NULL,
-                endereco_cidade VARCHAR(50) NOT NULL,
-                endereco_estado CHAR(2) NOT NULL CHECK(LENGTH(TRIM(endereco_estado)) = 2),
-                endereco_cep VARCHAR(10) NOT NULL CHECK(LENGTH(TRIM(endereco_cep)) >= 8),
-                km DECIMAL(6, 2) NOT NULL CHECK(km > 0),
-                metodo_pagamento ENUM(
-                   'pix', 'credito', 'debito', 'boleto') NOT NULL,
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP
@@ -186,14 +177,6 @@ with conexao() as cursor:
                     CHECK(LENGTH(TRIM(nome_passageiro)) > 0),
                 nome_motorista VARCHAR(100) NOT NULL
                     CHECK(LENGTH(TRIM(nome_motorista)) > 0),
-                endereco_rua VARCHAR(100) NOT NULL,
-                endereco_numero VARCHAR(10) NOT NULL,
-                endereco_bairro VARCHAR(50) NOT NULL,
-                endereco_cidade VARCHAR(50) NOT NULL,
-                endereco_estado CHAR(2) NOT NULL
-                    CHECK(LENGTH(TRIM(endereco_estado)) = 2),
-                endereco_cep VARCHAR(10) NOT NULL
-                    CHECK(LENGTH(TRIM(endereco_cep)) >= 8),
                 valor_por_km DECIMAL(5, 2) NOT NULL CHECK(valor_por_km > 0),
                 total_viagem DECIMAL(10, 2) NOT NULL CHECK(total_viagem > 0),
                 metodo_pagamento ENUM(
