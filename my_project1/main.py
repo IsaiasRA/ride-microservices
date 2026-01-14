@@ -140,6 +140,10 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_passa_nome ON passageiros(nome);')
+        
+    cursor.execute("SHOW INDEX FROM passageiros WHERE Key_name = 'idx_passa_criado'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_passa_criado ON passageiros(criado_em)')
 
 
     cursor.execute('''
@@ -272,7 +276,7 @@ def listar_passageiros():
                        endereco_numero, endereco_bairro, endereco_cidade, 
                        endereco_estado, endereco_cep, km, metodo_pagamento,
                        criado_em, atualizado_em
-                    FROM passageiros''')
+                    FROM passageiros ORDER BY criado_em DESC''')
 
             dados = [{
                 'id': p[0],
@@ -611,23 +615,34 @@ def adicionar_passageiro():
 
         dados = validar_json()
 
+        NORMALIZACOES = {
+            'nome': lambda v: formatar_nome(v),
+            'cpf': lambda v: str(v).strip(),
+            'telefone': lambda v: str(v).strip(),
+            'saldo': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
+            'endereco_rua': lambda v: str(v).strip(),
+            'endereco_numero': lambda v: str(v).strip(),
+            'endereco_bairro': lambda v: str(v).strip(),
+            'endereco_cidade': lambda v: formatar_nome(v),
+            'endereco_estado': lambda v: str(v).strip().upper(),
+            'endereco_cep': lambda v: str(v).strip(),
+            'km': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
+            'metodo_pagamento': lambda v: str(v).strip().lower()
+        }
+
         REGRAS = {
-            'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'cpf': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{11}', v) is not None,
-            'telefone': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{10,11}', v) is not None,
-            'saldo': lambda v: isinstance(v, Decimal) and v >= 0,
-            'endereco_rua': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_numero': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_bairro': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_cidade': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_estado': lambda v: isinstance(v, str) and len(v.strip()) == 2,
-            'endereco_cep': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
-            'km': lambda v: isinstance(v, Decimal) and v > 0,
-            'metodo_pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto')
+            'nome': lambda v: v != '',
+            'cpf': lambda v: re.fullmatch(r'\d{11}', v) is not None,
+            'telefone': lambda v: re.fullmatch(r'\d{10,11}', v) is not None,
+            'saldo': lambda v: v >= 0,
+            'endereco_rua': lambda v: v != '',
+            'endereco_numero': lambda v: v != '',
+            'endereco_bairro': lambda v: v != '',
+            'endereco_cidade': lambda v: v != '',
+            'endereco_estado': lambda v: len(v) == 2,
+            'endereco_cep': lambda v: re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
+            'km': lambda v: v > 0,
+            'metodo_pagamento': lambda v: v in ('pix', 'credito', 'debito', 'boleto')
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -639,25 +654,7 @@ def adicionar_passageiro():
         for campo, regra in REGRAS.items():
             try:
                 valor = dados[campo]
-
-                if campo in ('cpf', 'telefone', 'endereco_rua', 'endereco_numero',
-                             'endereco_bairro', 'endereco_cep'):
-                    valor = str(valor).strip()
-                
-                elif campo in ('nome', 'endereco_cidade'):
-                    valor = formatar_nome(valor)
-                
-                elif campo in ('metodo_pagamento'):
-                    valor = str(valor).strip().lower()
-                
-                elif campo == 'endereco_estado':
-                    valor = str(valor).strip().upper()
-
-                elif campo in ('saldo', 'km'):
-                    try:
-                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
-                    except InvalidOperation:
-                        raise ValueError
+                valor = NORMALIZACOES[campo](valor)
 
                 if not regra(valor):
                     raise ValueError
@@ -700,23 +697,35 @@ def adicionar_passageiro():
 def atualizar_passageiro(id):
     try:
         logger.info(f'Atualizando passageiro com id={id}...')
+
         dados = validar_json()
 
+        NORMALIZACOES = {
+            'nome': lambda v: formatar_nome(v),
+            'telefone': lambda v: str(v).strip(),
+            'saldo': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
+            'endereco_rua': lambda v: str(v).strip(),
+            'endereco_numero': lambda v: str(v).strip(),
+            'endereco_bairro': lambda v: str(v).strip(),
+            'endereco_cidade': lambda v: formatar_nome(v),
+            'endereco_estado': lambda v: str(v).strip().upper(),
+            'endereco_cep': lambda v: str(v).strip(),
+            'km': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
+            'metodo_pagamento': lambda v: str(v).strip().lower()
+        }
+
         REGRAS = {
-            'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'telefone': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{10,11}', v) is not None,
-            'saldo': lambda v: isinstance(v, Decimal) and v >= 0,
-            'endereco_rua': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_numero': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_bairro': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_cidade': lambda v: isinstance(v, str) and v.strip() != '',
-            'endereco_estado': lambda v: isinstance(v, str) and len(v.strip()) == 2,
-            'endereco_cep': lambda v: isinstance(
-                v, str) and re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
-            'km': lambda v: isinstance(v, Decimal) and v > 0,
-            'metodo_pagamento': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('pix', 'credito', 'debito', 'boleto')
+            'nome': lambda v: v != '',
+            'telefone': lambda v: re.fullmatch(r'\d{10,11}', v) is not None,
+            'saldo': lambda v: v >= 0,
+            'endereco_rua': lambda v: v != '',
+            'endereco_numero': lambda v: v != '',
+            'endereco_bairro': lambda v: v != '',
+            'endereco_cidade': lambda v: v != '',
+            'endereco_estado': lambda v: len(v) == 2,
+            'endereco_cep': lambda v: re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
+            'km': lambda v: v > 0,
+            'metodo_pagamento': lambda v: v in ('pix', 'credito', 'debito', 'boleto')
         }
 
         enviados = {k: v for k, v in dados.items(
@@ -728,25 +737,7 @@ def atualizar_passageiro(id):
 
         for campo, valor in enviados.items():
             try:
-                if campo in ('telefone', 'endereco_rua',
-                             'endereco_numero', 'endereco_bairro',
-                             'endereco_cep'):
-                    valor = str(valor).strip()
-                
-                elif campo in ('nome', 'endereco_cidade'):
-                    valor = formatar_nome(valor)
-                
-                elif campo == 'endereco_estado':
-                    valor = str(valor).strip().upper()
-                
-                elif campo in ('metodo_pagamento'):
-                    valor = str(valor).strip().lower()
-
-                elif campo in ('saldo', 'km'):
-                    try:
-                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
-                    except InvalidOperation:
-                        raise ValueError
+                valor = NORMALIZACOES[campo](valor)
 
                 if not REGRAS[campo](valor):
                     raise ValueError
