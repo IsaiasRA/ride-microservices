@@ -179,8 +179,6 @@ with conexao() as cursor:
                     CHECK(LENGTH(TRIM(nome_motorista)) > 0),
                 valor_por_km DECIMAL(5, 2) NOT NULL CHECK(valor_por_km > 0),
                 total_viagem DECIMAL(10, 2) NOT NULL CHECK(total_viagem > 0),
-                metodo_pagamento ENUM(
-                   'pix', 'credito', 'debito', 'boleto') NOT NULL,
                 status ENUM('confirmada', 'cancelada') DEFAULT 'confirmada',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -211,6 +209,16 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_viagens_nome_moto ON viagens(nome_motorista)')
+        
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS viagens_corridas (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_viagem INT UNSIGNED NOT NULL,
+            id_passageiro INT UNSIGNED NOT NULL,
+            km DECIMAL()
+            
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;''')
 
 
     cursor.execute('''
