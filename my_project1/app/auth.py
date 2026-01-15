@@ -99,26 +99,28 @@ def validar_token(token: str, token_type: str = 'access'):
         return {'erro': 'Erro inesperado ao válidar token!'}, 500
     
 
-def rota_protegida(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        auth = request.headers.get('Authorization')
+def rota_protegida(role=None):
+    def decorador(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            auth = request.headers.get('Authorization')
 
-        if not auth:
-            logger.warning('Token não enviado.')
-            return jsonify({'erro': 'Token não enviado!'}), 401
-        
-        partes = auth.split()
+            if not auth:
+                logger.warning('Token não enviado.')
+                return jsonify({'erro': 'Token não enviado!'}), 401
+            
+            partes = auth.split()
 
-        if len(partes) != 2 or partes[0].lower() != 'bearer':
-            logger.warning('JSON malformado. Use Bearer <token>')
-            return jsonify({'erro': 'JSON malformado! Use Bearer <token>'}), 401
-        
-        payload, status = validar_token(partes[1], token_type='access')
+            if len(partes) != 2 or partes[0].lower() != 'bearer':
+                logger.warning('JSON malformado. Use Bearer <token>')
+                return jsonify({'erro': 'JSON malformado! Use Bearer <token>'}), 401
+            
+            payload, status = validar_token(partes[1], token_type='access')
 
-        if status != 200:
-            return jsonify(payload), status
-        
-        g.id_usuario = payload.get('sub')
-        return func(*args, **kwargs)
-    return wrapper
+            if status != 200:
+                return jsonify(payload), status
+            
+            g.id_usuario = payload.get('sub')
+            return func(*args, **kwargs)
+        return wrapper
+    return decorador

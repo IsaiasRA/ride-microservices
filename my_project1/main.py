@@ -1,5 +1,8 @@
 from flask import Flask, jsonify, request
 from contextlib import closing, contextmanager
+from werkzeug.exceptions import (BadRequest,
+                                  NotFound,
+                                  Conflict)
 from app.error import (tratamento_erro_mysql,
                          register_erro_handlers)
 from app.log import configurar_logging
@@ -120,6 +123,7 @@ with conexao() as cursor:
                 cpf CHAR(11) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) = 11),
                 telefone VARCHAR(20) NOT NULL UNIQUE CHECK(LENGTH(TRIM(telefone)) >= 8),
                 saldo DECIMAL(10, 2) DEFAULT 0 CHECK(saldo >= 0),
+                status ENUM('ativo', 'bloqueado') DEFAULT 'ativo',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP
@@ -132,9 +136,14 @@ with conexao() as cursor:
         cursor.execute(
             'CREATE INDEX idx_passa_nome ON passageiros(nome);')
         
-    cursor.execute("SHOW INDEX FROM passageiros WHERE Key_name = 'idx_passa_criado'")
+    cursor.execute("SHOW INDEX FROM passageiros WHERE Key_name = 'idx_passa_data'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_passa_criado ON passageiros(criado_em)')
+        cursor.execute('CREATE INDEX idx_passa_data ON passageiros(criado_em)')
+
+    cursor.execute("SHOW INDEX FROM passageiros WHERE Key_name = 'idx_passa_status_data'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_passa_status_data ON passageiros(status, criado_em)')
 
 
     cursor.execute('''
@@ -147,8 +156,8 @@ with conexao() as cursor:
                 placa CHAR(7) NOT NULL UNIQUE CHECK(LENGTH(TRIM(placa)) = 7),
                 modelo_carro VARCHAR(50) NOT NULL,
                 ano_carro INT UNSIGNED NOT NULL CHECK(ano_carro >= 1980),
-                status ENUM('ativo', 'suspenso', 'bloqueado') DEFAULT 'ativo',
-                valor_passagem DECIMAL(5, 2) UNSIGNED NOT NULL,
+                status ENUM('ativo', 'bloqueado') DEFAULT 'ativo',
+                valor_passagem DECIMAL(10, 2) UNSIGNED NOT NULL,
                 quantia DECIMAL(10, 2) UNSIGNED DEFAULT 0 CHECK(quantia >= 0),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -161,11 +170,19 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute('CREATE INDEX idx_moto_nome ON motoristas(nome)')
 
+    cursor.execute("SHOW INDEX FROM motoristas WHERE Key_name = 'idx_moto_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_moto_status ON motoristas(status)')
+
     cursor.execute(
         "SHOW INDEX FROM motoristas WHERE Key_name = 'idx_moto_ano_carro'")
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_moto_ano_carro ON motoristas(ano_carro)')
+        
+    cursor.execute("SHOW INDEX FROM motoristas WHERE Key_name = 'idx_moto_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_moto_data ON motoristas(criado_em)')
 
 
     cursor.execute('''
@@ -173,16 +190,15 @@ with conexao() as cursor:
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 id_passageiro INT UNSIGNED NOT NULL,
                 id_motorista INT UNSIGNED NOT NULL,
-                nome_passageiro VARCHAR(100) NOT NULL,
-                    CHECK(LENGTH(TRIM(nome_passageiro)) > 0),
-                nome_motorista VARCHAR(100) NOT NULL
-                    CHECK(LENGTH(TRIM(nome_motorista)) > 0),
-                valor_por_km DECIMAL(5, 2) NOT NULL CHECK(valor_por_km > 0),
-                total_viagem DECIMAL(10, 2) NOT NULL CHECK(total_viagem > 0),
-                status ENUM('confirmada', 'cancelada') DEFAULT 'confirmada',
+                km DECIMAL(6, 2) NOT NULL CHECK(km > 0),
+                valor_por_km DECIMAL(10, 2) NOT NULL CHECK(valor_por_km > 0),
+                total DECIMAL(10, 2) NOT NULL CHECK(total > 0),
+                status ENUM('criada', 'em_andamento', 'confirmada',
+                   'finalizada', 'cancelada') DEFAULT 'criada',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP,
+                   
                 CONSTRAINT fk_viagens_passageiro
                    FOREIGN KEY (id_passageiro)
                    REFERENCES passageiros(id)
@@ -191,34 +207,52 @@ with conexao() as cursor:
                 CONSTRAINT fk_viagens_motoristas
                     FOREIGN KEY (id_motorista)
                     REFERENCES motoristas(id)
-                    ON DELETE RESTRICT ON UPDATE RESTRICT,
-
-                INDEX idx_viagens_passageiro (id_passageiro),
-                INDEX idx_viagens_motorista (id_motorista)
+                    ON DELETE RESTRICT ON UPDATE RESTRICT
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE utf8mb4_unicode_ci;
         ''')
-
-    cursor.execute(
-        "SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_nome_passa'")
+    
+    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_id_passa'")
     if not cursor.fetchone():
-        cursor.execute(
-            'CREATE INDEX idx_viagens_nome_passa ON viagens(nome_passageiro)')
+        cursor.execute('CREATE INDEX idx_viagens_id_passa ON viagens(id_passageiro)')
 
-    cursor.execute(
-        "SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_nome_moto'")
+    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_id_moto'")
     if not cursor.fetchone():
-        cursor.execute(
-            'CREATE INDEX idx_viagens_nome_moto ON viagens(nome_motorista)')
-        
+        cursor.execute('CREATE INDEX idx_viagens_id_moto ON viagens(id_motorista)')
+
+    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_viagens_status ON viagens(status)')
+
+    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_viagens_data ON viagens(criado_em)')
+
 
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS viagens_corridas (
+        CREATE TABLE IF NOT EXISTS viagens_enderecos (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_viagem INT UNSIGNED NOT NULL,
-            id_passageiro INT UNSIGNED NOT NULL,
-            km DECIMAL()
+            tipo ENUM('origem', 'destino') NOT NULL,
+            rua VARCHAR(150) NOT NULL,
+            numero VARCHAR(20) NOT NULL,
+            bairro VARCHAR(100) NOT NULL,
+            cidade VARCHAR(100) NOT NULL,
+            estado CHAR(2) NOT NULL CHECK(LENGTH(TRIM(estado)) = 2),
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             
+            CONSTRAINT fk_endereco_viagem
+                FOREIGN KEY (id_viagem)
+                REFERENCES viagens(id)
+                ON DELETE CASCADE ON UPDATE RESTRICT,
+            
+            UNIQUE KEY uk_viagem_tipo (id_viagem, tipo)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;''')
+    
+
+    cursor.execute(
+        "SHOW INDEX FROM viagens_enderecos WHERE Key_name = 'idx_endereco_viagem'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_endereco_viagem ON viagens_enderecos(id_viagem)')
 
 
     cursor.execute('''
@@ -229,62 +263,70 @@ with conexao() as cursor:
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
                 pagamento ENUM('pago', 'cancelado', 'pendente') DEFAULT 'pago',
-                status ENUM('concluido', 'cancelado') DEFAULT 'concluido',
                 valor_viagem DECIMAL(10, 2) NOT NULL CHECK(valor_viagem > 0),
+                parcelas TINYINT UNSIGNED DEFAULT 1 CHECK(parcelas BETWEEN 1 AND 12),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP,
+
                 CONSTRAINT fk_registro_viagem
                    FOREIGN KEY (id_viagem)
                    REFERENCES viagens(id)
-                   ON DELETE SET NULL ON UPDATE RESTRICT,
-                INDEX idx_registro_viagem (id_viagem)
+                   ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+                CONSTRAINT chk_metodo_parcelas
+                    CHECK((metodo_pagamento IN ('pix', 'debito') AND parcelas = 1)
+                    OR (metodo_pagamento IN ('credito', 'boleto')
+                    AND parcelas BETWEEN 1 AND 12))
+
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
 
     cursor.execute(
-        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_registro_remetente'")
+        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_viagem'")
     if not cursor.fetchone():
         cursor.execute(
-            'CREATE INDEX idx_registro_remetente ON registros_pagamento(remetente)')
+            'CREATE INDEX idx_pagamento_viagem ON registros_pagamento(id_viagem)')
 
     cursor.execute(
-        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_registro_recebedor'")
+        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_remetente'")
     if not cursor.fetchone():
         cursor.execute(
-            'CREATE INDEX idx_registro_recebedor ON registros_pagamento(recebedor)')
+            'CREATE INDEX idx_pagamento_remetente ON registros_pagamento(remetente)')
+
+    cursor.execute(
+        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_recebedor'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_pagamento_recebedor ON registros_pagamento(recebedor)')
+
+    cursor.execute(
+        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_pagamento_data ON registros_pagamento(criado_em)')
 
 
 @app1.route('/passageiros', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def listar_passageiros():
+@rota_protegida(role='admin')
+def listar_passageiros_admin():
     try:
         logger.info('Listando passageiros...')
+
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, nome, cpf, telefone, saldo, endereco_rua,
-                       endereco_numero, endereco_bairro, endereco_cidade, 
-                       endereco_estado, endereco_cep, km, metodo_pagamento,
-                       criado_em, atualizado_em
+                SELECT id, nome, telefone, saldo,
+                       status, criado_em, atualizado_em
                     FROM passageiros ORDER BY criado_em DESC''')
 
             dados = [{
                 'id': p[0],
                 'nome': p[1],
-                'cpf': p[2],
-                'telefone': p[3],
-                'saldo': p[4],
-                'endereco_rua': p[5],
-                'endereco_numero': p[6],
-                'endereco_bairro': p[7],
-                'endereco_cidade': p[8],
-                'endereco_estado': p[9],
-                'endereco_cep': p[10],
-                'km': p[11],
-                'metodo_pagamento': p[12],
-                'criado_em': p[13],
-                'atualizado_em': p[14]
+                'telefone': p[2],
+                'saldo': p[3],
+                'status': p[4],
+                'criado_em': p[5],
+                'atualizado_em': p[6]
             } for p in cursor.fetchall()]
 
             if not dados:
@@ -293,6 +335,7 @@ def listar_passageiros():
 
             logger.info('Listagem de passageiros bem-sucedida.')
             return jsonify(dados), 200
+        
     except Exception as erro:
         logger.error(f'Erro inesperado ao listar passageiros: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao listar passageiros!'}), 500
@@ -300,16 +343,15 @@ def listar_passageiros():
 
 @app1.route('/passageiros/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
+@rota_protegida(role='admin')
 def buscar_passageiro(id):
     try:
         logger.info(f'Buscando passageiro com id={id}...')
+
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, nome, cpf, telefone, saldo, endereco_rua,
-                       endereco_numero, endereco_bairro, endereco_cidade, 
-                       endereco_estado, endereco_cep, km, metodo_pagamento,
-                       criado_em, atualizado_em
+                SELECT id, nome, telefone, saldo,
+                       status, criado_em, atualizado_em
                     FROM passageiros WHERE id = %s''', (id,))
             dado = cursor.fetchone()
 
@@ -321,20 +363,13 @@ def buscar_passageiro(id):
             return jsonify({
                 'id': dado[0],
                 'nome': dado[1],
-                'cpf': dado[2],
-                'telefone': dado[3],
-                'saldo': dado[4],
-                'endereco_rua': dado[5],
-                'endereco_numero': dado[6],
-                'endereco_bairro': dado[7],
-                'endereco_cidade': dado[8],
-                'endereco_estado': dado[9],
-                'endereco_cep': dado[10],
-                'km': dado[11],
-                'metodo_pagamento': dado[12],
-                'criado_em': dado[13],
-                'atualizado_em': dado[14]
+                'telefone': dado[2],
+                'saldo': dado[3],
+                'status': dado[4],
+                'criado_em': dado[5],
+                'atualizado_em': dado[6]
             }), 200
+        
     except Exception as erro:
         logger.error(f'Erro inesperado ao buscar passageiros: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao buscar passageiros!'}), 500
@@ -599,8 +634,8 @@ def logout():
 
 @app1.route('/passageiros', methods=['POST'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def adicionar_passageiro():
+@rota_protegida(role='admin')
+def adicionar_passageiro_admin():
     try:
         logger.info('Adicionando passageiro...')
 
@@ -611,29 +646,13 @@ def adicionar_passageiro():
             'cpf': lambda v: str(v).strip(),
             'telefone': lambda v: str(v).strip(),
             'saldo': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
-            'endereco_rua': lambda v: str(v).strip(),
-            'endereco_numero': lambda v: str(v).strip(),
-            'endereco_bairro': lambda v: str(v).strip(),
-            'endereco_cidade': lambda v: formatar_nome(v),
-            'endereco_estado': lambda v: str(v).strip().upper(),
-            'endereco_cep': lambda v: str(v).strip(),
-            'km': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
-            'metodo_pagamento': lambda v: str(v).strip().lower()
         }
 
         REGRAS = {
             'nome': lambda v: v != '',
             'cpf': lambda v: re.fullmatch(r'\d{11}', v) is not None,
             'telefone': lambda v: re.fullmatch(r'\d{10,11}', v) is not None,
-            'saldo': lambda v: v >= 0,
-            'endereco_rua': lambda v: v != '',
-            'endereco_numero': lambda v: v != '',
-            'endereco_bairro': lambda v: v != '',
-            'endereco_cidade': lambda v: v != '',
-            'endereco_estado': lambda v: len(v) == 2,
-            'endereco_cep': lambda v: re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
-            'km': lambda v: v > 0,
-            'metodo_pagamento': lambda v: v in ('pix', 'credito', 'debito', 'boleto')
+            'saldo': lambda v: v >= 0
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -660,16 +679,10 @@ def adicionar_passageiro():
         with conexao() as cursor:
             cursor.execute('''
                 INSERT INTO passageiros (
-                    nome, cpf, telefone, saldo, endereco_rua, endereco_numero,
-                    endereco_bairro, endereco_cidade, endereco_estado,
-                    endereco_cep, km, metodo_pagamento) VALUES 
-                    (%s, %s, %s, %s, %s, %s,
-                     %s, %s, %s, %s, %s, %s)
-                ''', (dados['nome'], dados['cpf'], dados['telefone'], dados['saldo'],
-                      dados['endereco_rua'], dados['endereco_numero'],
-                      dados['endereco_bairro'], dados['endereco_cidade'],
-                      dados['endereco_estado'], dados['endereco_cep'], dados['km'],
-                      dados['metodo_pagamento'])
+                    nome, cpf, telefone, saldo)
+                    VALUES (%s, %s, %s, %s)
+                ''', (dados['nome'], dados['cpf'],
+                     dados['telefone'], dados['saldo'])
                 )
             
             novo_id = cursor.lastrowid
@@ -682,10 +695,10 @@ def adicionar_passageiro():
         return jsonify({'erro': 'Erro inesperado ao adicionar passageiro!'}), 500
 
 
-@app1.route('/passageiros/<int:id>', methods=['PUT'])
+@app1.route('/passageiros/<int:id>', methods=['PATCH'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def atualizar_passageiro(id):
+@rota_protegida(role='admin')
+def atualizar_passageiro_admin(id):
     try:
         logger.info(f'Atualizando passageiro com id={id}...')
 
@@ -694,33 +707,16 @@ def atualizar_passageiro(id):
         NORMALIZACOES = {
             'nome': lambda v: formatar_nome(v),
             'telefone': lambda v: str(v).strip(),
-            'saldo': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
-            'endereco_rua': lambda v: str(v).strip(),
-            'endereco_numero': lambda v: str(v).strip(),
-            'endereco_bairro': lambda v: str(v).strip(),
-            'endereco_cidade': lambda v: formatar_nome(v),
-            'endereco_estado': lambda v: str(v).strip().upper(),
-            'endereco_cep': lambda v: str(v).strip(),
-            'km': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
-            'metodo_pagamento': lambda v: str(v).strip().lower()
+            'saldo': lambda v: Decimal(str(v)).quantize(Decimal('0.01'))
         }
 
         REGRAS = {
             'nome': lambda v: v != '',
             'telefone': lambda v: re.fullmatch(r'\d{10,11}', v) is not None,
-            'saldo': lambda v: v >= 0,
-            'endereco_rua': lambda v: v != '',
-            'endereco_numero': lambda v: v != '',
-            'endereco_bairro': lambda v: v != '',
-            'endereco_cidade': lambda v: v != '',
-            'endereco_estado': lambda v: len(v) == 2,
-            'endereco_cep': lambda v: re.fullmatch(r'\d{5}-?\d{3}', v) is not None,
-            'km': lambda v: v > 0,
-            'metodo_pagamento': lambda v: v in ('pix', 'credito', 'debito', 'boleto')
+            'saldo': lambda v: v >= 0
         }
 
-        enviados = {k: v for k, v in dados.items(
-        ) if k in REGRAS and v is not None}
+        enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
 
         if not enviados:
             logger.warning('Nenhum campo enviado para a atualização.')
@@ -740,47 +736,92 @@ def atualizar_passageiro(id):
                     f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
-
         set_sql = ", ".join(f"{campo} = %s" for campo in enviados.keys())
         valores = list(enviados.values())
         valores.append(id)
 
-        query = f"UPDATE passageiros SET {set_sql} WHERE id = %s"
+        query = f"UPDATE passageiros SET {set_sql} WHERE id = %s AND status != 'bloqueado'"
         with conexao() as cursor:
             cursor.execute(query, valores)
 
             if cursor.rowcount == 0:
-                logger.warning(f'Passageiro id={id} não encontrado.')
-                return jsonify({'erro': 'Passageiro não encontrado!'}), 404
+                cursor.execute('SELECT id FROM passageiros WHERE id = %s', (id,))
+                if not cursor.fetchone():
+                    logger.warning(f'Passageiro id={id} não encontrado.')
+                    return jsonify({'erro': 'Passageiro não encontrado!'}), 404
+                logger.warning('Passageiro bloqueado.')
+                return jsonify(
+                    {'erro': 'Passageiro bloqueado não pode ser atualizado!'}), 409
 
             logger.info(f'Passageiro id={id} atualizado com sucesso.')
-            return jsonify({'mensagem': 'Passageiro atualizado!',
-                            'atualizado': enviados}), 200
+            return '', 204
 
     except Exception as erro:
         logger.error(f'Erro inesperado ao atualizar passageiro: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao atualizar passageiro!'}), 500
 
 
-@app1.route('/passageiros/<int:id>', methods=['DELETE'])
+@app1.route('/passageiros/<int:id>/bloquear', methods=['PATCH'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def deletar_passageiro(id):
+@rota_protegida(role='admin')
+def bloquear_passageiro_admin(id):
     try:
-        logger.info(f'Deletando passageiro com id={id}...')
+        logger.info(f'Bloqueando passageiro com id={id}...')
         with conexao() as cursor:
-            cursor.execute('DELETE FROM passageiros WHERE id = %s', (id,))
+            cursor.execute(
+                'SELECT status FROM passageiros WHERE id = %s', (id,))
+            
+            passageiro = cursor.fetchone()
 
-            if cursor.rowcount == 0:
-                logger.warning(f'Passageiro {id} não encontrado.')
+            if not passageiro:
+                logger.warning(f'Passageiro id={id} não encontrado.')
                 return jsonify({'erro': 'Passageiro não encontrado!'}), 404
-
-            logger.info('Recurso deletado com sucesso.')
+            
+            if passageiro[0] == 'bloqueado':
+                logger.warning(f'Passageiro id={id} já foi bloqueado.')
+                return jsonify({'erro': 'Passageiro já foi bloqueado!'}), 409
+            
+            cursor.execute(
+                "UPDATE passageiros SET status = 'bloqueado' WHERE id = %s",
+                (id,))
+            logger.info('Passageiro bloqueado com sucesso.')
             return '', 204
         
     except Exception as erro:
-        logger.error(f'Erro inesperado ao deletar passageiro: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao deletar passageiro!'}), 500
+        logger.error(f'Erro inesperado ao bloquear passageiro: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao bloquear passageiro!'}), 500
+
+
+@app1.route('/passageiros/<int:id>/reativar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def reativar_passageiro_admin(id):
+    try:
+        logger.info(f'Reativando passageiro com id={id}...')
+        with conexao() as cursor:
+            cursor.execute(
+                'SELECT status FROM passageiros WHERE id = %s', (id,))
+            
+            passageiro = cursor.fetchone()
+
+            if not passageiro:
+                logger.warning(f'Passageiro id={id} não encontrado.')
+                return jsonify({'erro': 'Passsageiro não encontrado!'}), 404
+            
+            if passageiro[0] == 'ativo':
+                logger.warning(f'Passageiro id={id} já foi ativado.')
+                return jsonify({'erro': 'Passageiro já foi ativado!'}), 409
+            
+            cursor.execute(
+                "UPDATE passageiros SET status = 'ativo' WHERE id = %s",
+                (id,))
+            
+            logger.info('Passageiro reativado com sucesso.')
+            return '', 204
+
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao reativar passageiro: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao reativar passageiro!'}), 500
 
 
 register_erro_handlers(app1)
@@ -791,16 +832,17 @@ app2 = Flask('API2')
 
 @app2.route('/motoristas', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def listar_motoristas():
+@rota_protegida(role='admin')
+def listar_motoristas_admin():
     try:
         logger.info('Listando motoristas...')
+
         with conexao() as cursor:
             cursor.execute('''
                 SELECT id, nome, cnh, telefone, categoria_cnh, placa,
                        modelo_carro, ano_carro, status, valor_passagem,
                        quantia, criado_em, atualizado_em
-                    FROM motoristas''')
+                    FROM motoristas ORDER BY criado_em DESC''')
             dados = [{
                 'id': m[0],
                 'nome': m[1],
@@ -831,8 +873,8 @@ def listar_motoristas():
 
 @app2.route('/motoristas/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def buscar_motorista(id):
+@rota_protegida(role='admin')
+def buscar_motorista_admin(id):
     try:
         logger.info(f'Buscando motorista com id={id}...')
         with conexao() as cursor:
@@ -871,24 +913,34 @@ def buscar_motorista(id):
 
 @app2.route('/motoristas', methods=['POST'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def adicionar_motorista():
+@rota_protegida(role='admin')
+def adicionar_motorista_admin():
     try:
         logger.info('Adicionando motorista...')
 
         dados = validar_json()
 
+        NORMALIZACOES = {
+            'nome': lambda v: formatar_nome(v),
+            'cnh': lambda v: str(v).strip(),
+            'telefone': lambda v: str(v).strip(),
+            'categoria_cnh': lambda v: str(v).strip().upper(),
+            'placa': lambda v: str(v).strip().upper(),
+            'modelo_carro': lambda v: str(v).strip(),
+            'ano_carro': lambda v: int(v),
+            'valor_passagem': lambda v: Decimal(str(v)).quantize(Decimal('0.01'))
+        }
+
         REGRAS = {
-            'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'cnh': lambda v: isinstance(v, str) and len(v.strip()) == 11,
-            'telefone': lambda v: isinstance(v, str) and len(v.strip()) >= 8,
-            'categoria_cnh': lambda v: isinstance(
-                v, str) and v.strip().upper() in ('A', 'B', 'C', 'D', 'E'),
-            'placa': lambda v: isinstance(v, str) and re.fullmatch(
-                r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v.upper()) is not None,
-            'modelo_carro': lambda v: isinstance(v, str) and v.strip() != '',
-            'ano_carro': lambda v: isinstance(v, int) and v >= 1980,
-            'valor_passagem': lambda v: isinstance(v, Decimal) and v > 0
+            'nome': lambda v: v != '',
+            'cnh': lambda v: re.fullmatch(r'\d{11}', v) is not None,
+            'telefone': lambda v: re.fullmatch(r'\d{10,11}', v) is not None,
+            'categoria_cnh': lambda v: v in ('A', 'B', 'C', 'D', 'E'),
+            'placa': lambda v: re.fullmatch(
+                r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v) is not None,
+            'modelo_carro': lambda v: v != '',
+            'ano_carro': lambda v: v >= 1980,
+            'valor_passagem': lambda v: v > 0
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -900,24 +952,7 @@ def adicionar_motorista():
         for campo, regra in REGRAS.items():
             try:
                 valor = dados[campo]
-
-                if campo in ('cnh', 'telefone', 'placa', 'modelo_carro'):
-                    valor = str(valor).strip()
-
-                elif campo == 'nome':
-                    valor = formatar_nome(valor)
-                
-                elif campo == 'categoria_cnh':
-                    valor = str(valor).strip().upper()
-                
-                elif campo == 'valor_passagem':
-                    try:
-                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
-                    except InvalidOperation:
-                        raise ValueError
-
-                elif campo == 'ano_carro':
-                    valor = int(valor)
+                valor = NORMALIZACOES[campo](valor)
 
                 if not regra(valor):
                     raise ValueError
@@ -949,28 +984,34 @@ def adicionar_motorista():
         return jsonify({'erro': 'Erro inesperado ao adicionar motorista!'}), 500
 
 
-@app2.route('/motoristas/<int:id>', methods=['PUT'])
+@app2.route('/motoristas/<int:id>', methods=['PATCH'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def atualizar_motorista(id):
+@rota_protegida(role='admin')
+def atualizar_motorista_admin(id):
     try:
         logger.info(f'Atualizando motorista com id={id}...')
 
         dados = validar_json()
 
+        NORMALIZACOES = {
+            'nome': lambda v: formatar_nome(v),
+            'telefone': lambda v: str(v).strip(),
+            'categoria_cnh': lambda v: str(v).strip().upper(),
+            'placa': lambda v: str(v).strip().upper(),
+            'modelo_carro': lambda v: str(v).strip(),
+            'ano_carro': lambda v: int(v),
+            'valor_passagem': lambda v: Decimal(str(v)).quantize(Decimal('0.01'))
+        }
+
         REGRAS = {
-            'nome': lambda v: isinstance(v, str) and v.strip() != '',
-            'telefone': lambda v: isinstance(v, str) and len(v.strip()) >= 8,
-            'categoria_cnh': lambda v: isinstance(
-                v, str) and v.strip().upper() in ('A', 'B', 'C', 'D', 'E'),
-            'placa': lambda v: isinstance(v, str) and re.fullmatch(
-                r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v.upper()) is not None,
-            'modelo_carro': lambda v: isinstance(v, str) and v.strip() != '',
-            'ano_carro': lambda v: isinstance(v, int) and v >= 1980,
-            'status': lambda v: isinstance(
-                v, str) and v.strip().lower() in ('ativo', 'suspenso', 'bloqueado'),
-            'valor_passagem': lambda v: isinstance(v, Decimal) and v > 0,
-            'quantia': lambda v: isinstance(v, Decimal) and v >= 0
+            'nome': lambda v: v != '',
+            'telefone': lambda v: re.fullmatch(r'\d{10,11}', v) is not None,
+            'categoria_cnh': lambda v: v in ('A', 'B', 'C', 'D', 'E'),
+            'placa': lambda v: re.fullmatch(
+                r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v) is not None,
+            'modelo_carro': lambda v: v != '',
+            'ano_carro': lambda v: v >= 1980,
+            'valor_passagem': lambda v: v > 0
         }
 
         enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
@@ -981,26 +1022,7 @@ def atualizar_motorista(id):
 
         for campo, valor in enviados.items():
             try:
-                if campo in ('telefone', 'placa', 'modelo_carro'):
-                    valor = str(valor).strip()
-
-                elif campo == 'nome':
-                    valor = formatar_nome(valor)
-                
-                elif campo == 'categoria_cnh':
-                    valor = str(valor).strip().upper()
-                
-                elif campo == 'status':
-                    valor = str(valor).strip().lower()
-
-                elif campo in ('valor_passagem', 'quantia'):
-                    try:
-                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
-                    except InvalidOperation:
-                        raise ValueError
-
-                elif campo == 'ano_carro':
-                    valor = int(valor)
+                valor = NORMALIZACOES[campo](valor)
 
                 if not REGRAS[campo](valor):
                     raise ValueError
@@ -1017,27 +1039,31 @@ def atualizar_motorista(id):
         valores = list(enviados.values())
         valores.append(id)
 
-        query = f"UPDATE motoristas SET {set_sql} WHERE id = %s"
+        query = f"UPDATE motoristas SET {set_sql} WHERE id = %s AND status != 'bloqueado'"
         with conexao() as cursor:
             cursor.execute(query, valores)
 
             if cursor.rowcount == 0:
-                logger.warning(f'Motorista id={id} não encontrado.')
-                return jsonify({'erro': 'Motorista não encontrado!'}), 404
+                cursor.execute('SELECT id FROM motoristas WHERE id = %s', (id,))
+                if not cursor.fetchone():
+                    logger.warning(f'Motorista id={id} não encontrado.')
+                    return jsonify({'erro': 'Motorista não encontrado!'}), 404
+                logger.warning(f'Motorista id={id} bloqueado.')
+                return jsonify(
+                    {'erro': 'Motorista bloqueado não pode ser atualizado.'}), 409
 
             logger.info(f'Motorista id={id} atualizado com sucesso.')
-            return jsonify({'mensagem': 'Motorista atualizado!',
-                            'atualizado': enviados}), 200
+            return '', 204
 
     except Exception as erro:
         logger.error(f'Erro inesperado ao atualizar motorista: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao atualizar motorista!'}), 500
 
 
-@app2.route('/motoristas/<int:id>', methods=['PATCH'])
+@app2.route('/motoristas/<int:id>/bloquear', methods=['PATCH'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def bloquear_motorista(id):
+@rota_protegida(role='admin')
+def bloquear_motorista_admin(id):
     try:
         logger.info(f'Bloqueando motorista com id={id}...')
         with conexao() as cursor:
@@ -1050,7 +1076,8 @@ def bloquear_motorista(id):
             
             if motorista[0] == 'bloqueado':
                 logger.warning(f'Motorista id={id} já está bloqueado.')
-                return '', 204
+                return jsonify(
+                    {'erro': 'Motorista bloqueado já está bloqueado!'}), 409
             
             cursor.execute('''
                 UPDATE motoristas SET
@@ -1061,8 +1088,41 @@ def bloquear_motorista(id):
             return '', 204
         
     except Exception as erro:
-        logger.error(f'Erro inesperado ao deletar motorista: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao deletar motorista!'}), 500
+        logger.error(f'Erro inesperado ao bloquear motorista: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao bloquear motorista!'}), 500
+
+
+@app2.route('/motoristas/<int:id>/reativar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def reativar_motorista_admin(id):
+    try:
+        logger.info(f'Reativando motorista com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute(
+                'SELECT status FROM motoristas WHERE id = %s', (id,))
+            
+            motorista = cursor.fetchone()
+
+            if not motorista:
+                logger.warning(f'Motorista id={id} não encontrado.')
+                return jsonify({'erro': 'Motorista não encontrado!'}), 404
+            
+            if motorista[0] == 'ativo':
+                logger.warning(f'Motorista id={id} já está ativado.')
+                return jsonify({'erro': 'Motorista já está ativado!'}), 409
+            
+            cursor.execute(
+                "UPDATE motoristas SET status = 'ativo' WHERE id = %s",
+                (id,))
+            
+            logger.info('Motorista reativado com sucesso.')
+            return '', 204
+        
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao reativar motorista: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao reativar motorista!'}), 500
 
 
 register_erro_handlers(app2)
@@ -1071,44 +1131,33 @@ register_erro_handlers(app2)
 app3 = Flask('API3')
 
 
-@app3.route('/viagens', methods=['GET'])
+@app3.route('/admin/viagens', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def listar_viagens():
+@rota_protegida(role='admin')
+def listar_viagens_admin():
     try:
         logger.info('Listando viagens...')
+
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, id_passageiro, id_motorista, nome_passageiro,
-                       nome_motorista, endereco_rua, endereco_numero,
-                       endereco_bairro, endereco_cidade, endereco_estado,
-                       endereco_cep, valor_por_km, total_viagem,
-                       metodo_pagamento, status, criado_em,
-                       atualizado_em
-                    FROM viagens''')
+                SELECT id, id_passageiro, id_motorista, km, valor_por_km,
+                       total, status, criado_em, atualizado_em
+                    FROM viagens ORDER BY criado_em DESC''')
             
             dados = [{
                 'id': v[0],
                 'id_passageiro': v[1],
                 'id_motorista': v[2],
-                'nome_passageiro': v[3],
-                'nome_motorista': v[4],
-                'endereco_rua': v[5],
-                'endereco_numero': v[6],
-                'endereco_bairro':  v[7],
-                'endereco_cidade': v[8],
-                'endereco_estado': v[9],
-                'endereco_cep': v[10],
-                'valor_por_km': v[11],
-                'total_viagem': v[12],
-                'metodo_pagamento': v[13],
-                'status': v[14],
-                'criado_em': v[15],
-                'atualizado_em': v[16]
+                'km': v[3],
+                'valor_por_km': v[4],
+                'total': v[5],
+                'status': v[6],
+                'criado_em':  v[7],
+                'atualizado_em': v[8]
             } for v in cursor.fetchall()]
 
             if not dados:
-                logger.warning(f'Nenhum viagem cadastrada ainda.')
+                logger.warning(f'Nenhum viagem encontrada.')
                 return jsonify([]), 200
 
             logger.info(f'Listagem de viagens bem-sucedida.')
@@ -1119,20 +1168,17 @@ def listar_viagens():
         return jsonify({'erro': 'Erro inesperado ao listar viagens!'}), 500
 
 
-@app3.route('/viagens/<int:id>', methods=['GET'])
+@app3.route('/admin/viagens/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def buscar_viagem(id):
+@rota_protegida(role='admin')
+def buscar_viagem_admin(id):
     try:
         logger.info(f'Buscando viagem com id={id}...')
+
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, id_passageiro, id_motorista, nome_passageiro,
-                       nome_motorista, endereco_rua, endereco_numero,
-                       endereco_bairro, endereco_cidade, endereco_estado,
-                       endereco_cep, valor_por_km, total_viagem,
-                       metodo_pagamento, status, criado_em,
-                       atualizado_em
+                SELECT id, id_passageiro, id_motorista, km, valor_por_km,
+                       total, status, criado_em, atualizado_em
                     FROM viagens WHERE id = %s''', (id,))
 
             dado = cursor.fetchone()
@@ -1146,51 +1192,85 @@ def buscar_viagem(id):
                 'id': dado[0],
                 'id_passageiro': dado[1],
                 'id_motorista': dado[2],
-                'nome_passageiro': dado[3],
-                'nome_motorista': dado[4],
-                'endereco_rua': dado[5],
-                'endereco_numero': dado[6],
-                'endereco_bairro': dado[7],
-                'endereco_cidade': dado[8],
-                'endereco_estado': dado[9],
-                'endereco_cep': dado[10],
-                'valor_por_km': dado[11],
-                'total_viagem': dado[12],
-                'metodo_pagamento': dado[13],
-                'status': dado[14],
-                'criado_em': dado[15],
-                'atualizado_em': dado[16]
+                'km': dado[3],
+                'valor_por_km': dado[4],
+                'total': dado[5],
+                'status': dado[6],
+                'criado_em': dado[7],
+                'atualizado_em': dado[8]
             }), 200
 
     except Exception as erro:
         logger.error(f'Erro inesperado ao buscar viagem: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao buscar viagem!'}), 500
+    
 
-
-@app3.route('/viagens', methods=['POST'])
+@app3.route('/admin/viagens', methods=['POST'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def adicionar_viagem():
+@rota_protegida(role='admin')
+def criar_viagem_admin():
     try:
-        logger.info('Adicionando viagem...')
+        logger.info('Criando viagem...')
 
         dados = validar_json()
 
-        REGRAS = {
-            'id_passageiro': lambda v: isinstance(v, int) and v > 0,
-            'id_motorista': lambda v: isinstance(v, int) and v > 0
+        if 'enderecos' not in dados or not dados['enderecos']:
+            logger.warning('Endereços não enviado.')
+            return jsonify({'erro': 'Viagens deve ter enderecos!'}), 400
+
+        if not isinstance(dados['enderecos'], list):
+            logger.warning('Endereços deve ser uma lista.')
+            return jsonify({'erro': 'Endereços deve ser uma lista!'}), 400
+        
+        tipo = [str(e.get('tipo')).strip().lower() for e in dados['enderecos']]
+        if tipo.count('origem') != 1 or tipo.count('destino') != 1:
+            logger.warning('Viagem deve ter exatamente uma origem e um destino.')
+            return jsonify({'erro':
+                'Viagem deve ter exatamente uma origem e um destino!'}), 400
+
+        NORMALZACOES = {
+            'tipo': lambda v: str(v).strip().lower(),
+            'rua': lambda v: str(v).strip(),
+            'numero': lambda v: str(v).strip(),
+            'bairro': lambda v: str(v).strip(),
+            'cidade': lambda v: formatar_nome(v),
+            'estado': lambda v: str(v).strip().upper()
         }
 
-        faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
+        REGRAS_ENDERECOS = {
+            'tipo': lambda v: v in ('origem', 'destino'),
+            'rua': lambda v: v != '',
+            'numero': lambda v: v != '',
+            'bairro': lambda v: v != '',
+            'cidade': lambda v: v != '',
+            'estado': lambda v: re.fullmatch(r'[A-Z]{2}', v) is not None
+        }
+
+        REGRAS_VIAGENS = {
+            'id_passageiro': lambda v: v > 0,
+            'id_motorista': lambda v: v > 0,
+            'km': lambda v: v > 0
+        }
+
+        faltando = [c for c in REGRAS_VIAGENS if c not in dados or dados[c] is None]
 
         if faltando:
             logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
             return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
 
-        for campo, regra in REGRAS.items():
+        for campo, regra in REGRAS_VIAGENS.items():
             try:
-                valor = int(dados[campo])
+                valor = dados[campo]
 
+                if campo in ('id_passageiro', 'id_motorista'):
+                    valor = int(valor)
+                
+                elif campo == 'km':
+                    try:
+                        valor = Decimal(str(valor)).quantize(Decimal('0.01'))
+                    except InvalidOperation:
+                        raise ValueError
+        
                 if not regra(valor):
                     raise ValueError
 
@@ -1202,99 +1282,143 @@ def adicionar_viagem():
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
         with conexao() as cursor:
-            cursor.execute('''
-                SELECT nome, saldo, endereco_rua, endereco_numero,
-                       endereco_bairro, endereco_cidade, endereco_estado,
-                       endereco_cep, km, metodo_pagamento
-                    FROM passageiros WHERE id = %s FOR UPDATE''',
-                           (dados['id_passageiro'],))
-
-            passageiro = cursor.fetchone()
-            if not passageiro:
-                logger.warning(
-                    f"Passageiro {dados['id_passageiro']} não encontrado.")
-                return jsonify({'erro': 'Passageiro não encontrado!'}), 404
-
-            cursor.execute('''
-                SELECT nome, valor_passagem, status
-                    FROM motoristas WHERE id = %s''',
-                    (dados['id_motorista'],))
-            
-            motorista = cursor.fetchone()
-
-            if not motorista:
-                logger.warning(
-                    f"Motorista {dados['id_motorista']} não encontrado.")
-                return jsonify({'erro': 'Motorista não encontrado!'}), 404
-
             try:
-                nome_passageiro = formatar_nome(passageiro[0])
-                nome_motorista = formatar_nome(motorista[0])
-                endereco_rua = str(passageiro[2]).strip()
-                endereco_numero = str(passageiro[3]).strip()
-                endereco_bairro = str(passageiro[4]).strip()
-                endereco_cidade = formatar_nome(passageiro[5])
-                endereco_estado = str(passageiro[6]).strip().upper()
-                endereco_cep = str(passageiro[7]).strip()
-                saldo = Decimal(str(passageiro[1])).quantize(Decimal('0.01'))
-                km = Decimal(str(passageiro[8])).quantize(Decimal('0.01'))
-                valor_passagem = Decimal(str(motorista[1])).quantize(Decimal('0.01'))
-                metodo_pagamento = str(passageiro[9]).strip().lower()
-                status_moto = str(motorista[2]).strip().lower()
-            except (ValueError, TypeError, InvalidOperation) as erro:
-                logger.warning(f'Erro ao coletar dados em banco: {str(erro)}')
-                return jsonify({'erro': 'Erro ao coletar dados em banco SQL!'}), 400
+                cursor.execute('START TRANSACTION')
 
-            if valor_passagem <= 0:
-                logger.warning(f'Valor da passagem não pode ser negativo.')
-                return jsonify({'erro': 'Valor da passagem não pode ser negativo!'}), 400
+                cursor.execute('''
+                    SELECT status FROM passageiros WHERE id = %s''',
+                            (dados['id_passageiro'],))
 
-            if km <= 0:
-                logger.warning(f'Km deve ser positivo.')
-                return jsonify({'erro': 'Km deve ser positivo!'}), 400
+                passageiro = cursor.fetchone()
 
-            if status_moto != 'ativo':
-                logger.warning(
-                    f'Motorista suspenso ou bloqueado não pode fazer viagens.')
-                return jsonify(
-                    {'erro': 'Motorista suspenso ou bloqueado não pode fazer viagens!'}), 409
+                if not passageiro:
+                    logger.warning(
+                        f"Passageiro {dados['id_passageiro']} não encontrado.")
+                    raise NotFound('Passageiro não encontrado!')
+                
+                if passageiro[0] == 'bloqueado':
+                    logger.warning(f"Passageiro id={dados['id_passageiro']} bloqueado.")
+                    raise Conflict('Passageiro inativo para viagem!')
+                
+                cursor.execute('''
+                    SELECT id FROM viagens WHERE id_passageiro = %s
+                        AND status IN ('criada', 'em_andamento')
+                        FOR UPDATE''',
+                    (dados['id_passageiro'],))
+                
+                if cursor.fetchone():
+                    logger.warning(
+                        f'''Viagem de passageiro id={dados['id_passageiro']}
+                          já foi criada ou está em andamento.''')
+                    raise BadRequest(
+                        'Viagem de passageiro já foi criada ou está em andamento!')
 
-            total_viagem = (valor_passagem * km).quantize(Decimal('0.01'))
+                cursor.execute('''
+                    SELECT valor_passagem, status
+                        FROM motoristas WHERE id = %s''',
+                        (dados['id_motorista'],))
+                
+                motorista = cursor.fetchone()
 
-            if saldo < total_viagem:
-                logger.warning('Saldo insuficiente.')
-                return jsonify({'erro': 'Saldo insuficiente!'}), 400
+                if not motorista:
+                    logger.warning(
+                        f"Motorista {dados['id_motorista']} não encontrado.")
+                    raise NotFound('Motorista não encontrado!')
+                
+                if motorista[1] == 'bloqueado':
+                    logger.warning(f"Motorista id={dados['id_motorista']} bloqueado.")
+                    raise Conflict('Motorista inativo para viagem!')
+                
+                cursor.execute('''
+                    SELECT id FROM viagens WHERE id_motorista = %s
+                        AND status IN ('criada', 'em_andamento')
+                        FOR UPDATE''',
+                        (dados['id_motorista'],))
+                
+                if cursor.fetchone():
+                    logger.warning('Motorista já está em viagem.')
+                    raise BadRequest('Motorista já está em viagem!')
 
-            cursor.execute('UPDATE passageiros SET saldo = saldo - %s WHERE id = %s',
-                           (total_viagem, dados['id_passageiro']))
+                try:
+                    km = Decimal(str(dados['km'])).quantize(Decimal('0.01'))
+                    valor_por_km = Decimal(str(motorista[0])).quantize(Decimal('0.01'))
+                except InvalidOperation as erro:
+                    logger.warning(f'Erro ao coletar dados: {str(erro)}')
+                    raise BadRequest('Erro ao coletar dados!')
 
-            cursor.execute('UPDATE motoristas SET quantia = quantia + %s WHERE id = %s',
-                           (total_viagem, dados['id_motorista']))
+                if valor_por_km <= 0:
+                    logger.warning(f'Valor da passagem não pode ser negativo.')
+                    raise BadRequest('Valor da passagem não pode ser negativo!')
 
-            cursor.execute('''
-                    INSERT INTO viagens 
-                        (id_passageiro, id_motorista, nome_passageiro,
-                         nome_motorista, endereco_rua, endereco_numero, endereco_bairro,
-                         endereco_cidade, endereco_estado, endereco_cep, valor_por_km,
-                         total_viagem, metodo_pagamento) 
-                         VALUES (%s, %s, %s, %s, %s, %s, %s,
-                                 %s, %s, %s, %s, %s, %s)
-                    ''', (dados['id_passageiro'], dados['id_motorista'], nome_passageiro,
-                          nome_motorista, endereco_rua, endereco_numero, endereco_bairro,
-                          endereco_cidade, endereco_estado, endereco_cep, valor_passagem,
-                          total_viagem, metodo_pagamento))
-            
-            novo_id = cursor.lastrowid
+                total = (valor_por_km * km).quantize(Decimal('0.01'))
 
-            logger.info(f'Viagem id={novo_id} adicionada com sucesso.')
-            return jsonify({
-                'mensagem': 'Viagem adicionada com sucesso!',
-                'id': novo_id
+                cursor.execute('''
+                        INSERT INTO viagens 
+                            (id_passageiro, id_motorista, km,
+                            valor_por_km, total, status) 
+                            VALUES (%s, %s, %s, %s, %s, 'criada')
+                        ''', (dados['id_passageiro'], dados['id_motorista'], km,
+                            valor_por_km, total))
+                
+                id_viagem = cursor.lastrowid
+
+                for endereco in dados['enderecos']:
+                    faltando = [c for c in REGRAS_ENDERECOS if c not in endereco
+                                or endereco[c] is None]
+                    
+                    if faltando:
+                        logger.warning(
+                            f"Campos obrigatórios no endereço: {', '.join(faltando)}")
+                        raise BadRequest(f'''Campos obrigatórios no endereço:
+                                        {', '.join(faltando)}''')
+                    
+                    for campo, regra in REGRAS_ENDERECOS.items():
+                        try:
+                            valor = endereco[campo]
+                            valor = NORMALZACOES[campo](valor)
+
+                            if not regra(valor):
+                                raise ValueError
+                            
+                            endereco[campo] = valor
+                        
+                        except Exception as erro:
+                            logger.warning(
+                                f'Valor inválido para {campo}: {endereco.get(campo)}')
+                            raise BadRequest(f'Valor inválido para {campo}!')
+
+                    cursor.execute('''
+                        INSERT INTO viagens_enderecos (id_viagem, tipo,
+                            rua, numero, bairro, cidade, estado)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+                            (id_viagem,
+                            endereco['tipo'],
+                            endereco['rua'],
+                            endereco['numero'],
+                            endereco['bairro'],
+                            endereco['cidade'],
+                            endereco['estado']))
+                    
+                cursor.execute('COMMIT')
+
+                logger.info(f'Viagem id={id_viagem} criada com sucesso.')
+                return jsonify({
+                    'mensagem': 'Viagem criada com sucesso!',
+                    'id': id_viagem,
+                    'total': total
                 }), 201
+            
+            except Exception:
+                cursor.execute('ROLLBACK')
+                raise
+
+    except (BadRequest, NotFound, Conflict) as erro:
+        logger.warning(f'Erro de válidação: {erro.description}')
+        return jsonify({'erro': erro.description}), erro.code
 
     except Exception as erro:
-        logger.error(f'Erro inesperado ao adicionar viagem: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao adicionar viagem!'}), 500
+        logger.error(f'Erro inesperado ao criar viagem: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao criar viagem!'}), 500
 
 
 @app3.route('/viagens/<int:id>/cancelar', methods=['PATCH'])
