@@ -193,7 +193,7 @@ with conexao() as cursor:
                 km DECIMAL(6, 2) NOT NULL CHECK(km > 0),
                 valor_por_km DECIMAL(10, 2) NOT NULL CHECK(valor_por_km > 0),
                 total DECIMAL(10, 2) NOT NULL CHECK(total > 0),
-                status ENUM('criada', 'em_andamento', 'confirmada',
+                status ENUM('criada', 'em_andamento',
                    'finalizada', 'cancelada') DEFAULT 'criada',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1421,37 +1421,103 @@ def criar_viagem_admin():
         return jsonify({'erro': 'Erro inesperado ao criar viagem!'}), 500
 
 
-@app3.route('/viagens/<int:id>/cancelar', methods=['PATCH'])
+@app3.route('/admin/viagens/<int:id>/iniciar', methods=['PATCH'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def cancelar_viagem(id):
+@rota_protegida(role='admin')
+def iniciar_viagem_admin(id):
     try:
-        logger.info(f'Cancelando viagem com id={id}...')
+        logger.info(f'Iniciando viagem com id={id}...')
 
         with conexao() as cursor:
             cursor.execute(
-                '''SELECT status FROM viagens WHERE id = %s''',
-                  (id,))
-            viagem = cursor.fetchone()
-
-            if not viagem:
-                logger.warning(f'Viagem id={id} não encontrada.')
-                return jsonify({'erro': 'Viagem não encontrada!'}), 404
-            
-            cursor.execute("UPDATE viagens SET status = 'cancelada'"\
-                    "WHERE id = %s AND status != 'cancelada'",
-                    (id,))
+                "UPDATE viagens SET status = 'em_andamento' WHERE id = %s"\
+                    "AND status = 'criada'",
+                (id,))
             
             if cursor.rowcount == 0:
-                logger.warning(f'Viagem já foi cancelada.')
-                return jsonify({'erro': 'Viagem já está cancelada!'}), 409
-
-            logger.info('Viagem cancelada com sucesso!')
+                cursor.execute('SELECT id FROM viagens WHERE id = %s', (id,))
+                if not cursor.fetchone():
+                    logger.warning(f'Viagem id={id} não encontrada.')
+                    return jsonify({'erro': 'Viagem não encontrada!'}), 404
+                logger.warning(f'Viagem id={id} não pode ser iniciada.')
+                return jsonify({'erro': 'Viagem não pode ser iniciada!'}), 409
+            
+            logger.info('Viagem iniciada com sucesso.')
             return '', 204
-
+            
     except Exception as erro:
-        logger.error(f'Erro inesperado ao atualizar viagem: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao atualizar viagem!'}), 500
+        logger.error(f'Erro inesperado ao iniciar viagem: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao iniciar viagem!'}), 500
+    
+
+@app3.route('/admin/viagens/<int:id>/finalizar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def finalizar_viagens_admin(id):
+    try:
+        logger.info(f'Finalizando viagem com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute(
+                "SELECT id FROM registros_pagamento WHERE id_viagem = %s" \
+                " AND pagamento = 'pago'", (id,))
+            
+            pagamento = cursor.fetchone()
+            
+            if not pagamento:
+                logger.warning(f'Viagem id={id} não encontrada ou aguardando pagamento.')
+                return jsonify(
+                    {'erro': 'Viagem não encontrada ou aguardando pagamento!'}), 409
+            
+            cursor.execute(
+                "UPDATE viagens SET status = 'finalizada' WHERE id = %s" \
+                    " AND status = 'em_andamento'", (id,))
+            
+            if cursor.rowcount == 0:
+                cursor.execute('SELECT id FROM viagens WHERE id = %s', (id,))
+                if not cursor.fetchone():
+                    logger.warning(f'Viagem id={id} não encontrada.')
+                    return jsonify({'erro': 'Viagem não encontrada!'}), 404
+                logger.warning(f'Viagem id={id} não pode ser finalizada.')
+                return jsonify({'erro': 'Viagem não pode ser finalizada!'}), 409
+            
+            logger.info('Viagem finalizada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao finalizar viagem: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao finalizar viagem!'}), 500
+    
+
+@app3.route('/admin/viagens/<int:id>/finalizar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def finalizar_viagens_admin(id):
+    try:
+        logger.info(f'Finalizando viagem com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute(
+                "UPDATE viagens v INNER JOIN registros_pagamento p" \
+                "   ON p.id_viagem = v.id SET v.status = 'finalizada'"\
+                "   WHERE v.id = %s AND v.status = 'em_andamento'"\
+                "   AND p.pagamento = 'pago'")
+            
+            if cursor.rowcount == 0:
+                cursor.execute('SELECT id FROM viagens WHERE id = %s', (id,))
+                if not cursor.fetchone():
+                    logger.warning(f'Viagem id={id} não encontrada.')
+                    return jsonify({'erro': 'Viagem não encontrada!'}), 404
+                logger.warning(f'Viagem id={id} não pode ser finalizada.')
+                return jsonify({'erro': 'Viagem não pode ser finalizada!'}), 409
+            
+            logger.info('Viagem finalizada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao finalizar viagem: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao finalizar viagem!'}), 500
+    
     
 
 register_erro_handlers(app3)
