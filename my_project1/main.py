@@ -227,6 +227,10 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute('CREATE INDEX idx_viagens_data ON viagens(criado_em)')
 
+    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_id_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_viagens_id_status ON viagens(id, status)')
+
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS viagens_enderecos (
@@ -258,7 +262,7 @@ with conexao() as cursor:
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS registros_pagamento (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                id_viagem INT UNSIGNED,
+                id_viagem INT UNSIGNED UNIQUE,
                 remetente VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(remetente)) > 0),
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
@@ -283,12 +287,6 @@ with conexao() as cursor:
         ''')
 
     cursor.execute(
-        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_viagem'")
-    if not cursor.fetchone():
-        cursor.execute(
-            'CREATE INDEX idx_pagamento_viagem ON registros_pagamento(id_viagem)')
-
-    cursor.execute(
         "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_remetente'")
     if not cursor.fetchone():
         cursor.execute(
@@ -304,6 +302,11 @@ with conexao() as cursor:
         "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_data'")
     if not cursor.fetchone():
         cursor.execute('CREATE INDEX idx_pagamento_data ON registros_pagamento(criado_em)')
+
+    cursor.execute(
+        "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_viagem_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_pagamento_viagem_status ON registros_pagamento')
 
 
 @app1.route('/passageiros', methods=['GET'])
@@ -1459,57 +1462,20 @@ def finalizar_viagens_admin(id):
 
         with conexao() as cursor:
             cursor.execute(
-                "SELECT id FROM registros_pagamento WHERE id_viagem = %s" \
-                " AND pagamento = 'pago'", (id,))
-            
-            pagamento = cursor.fetchone()
-            
-            if not pagamento:
-                logger.warning(f'Viagem id={id} não encontrada ou aguardando pagamento.')
-                return jsonify(
-                    {'erro': 'Viagem não encontrada ou aguardando pagamento!'}), 409
-            
-            cursor.execute(
-                "UPDATE viagens SET status = 'finalizada' WHERE id = %s" \
-                    " AND status = 'em_andamento'", (id,))
-            
-            if cursor.rowcount == 0:
-                cursor.execute('SELECT id FROM viagens WHERE id = %s', (id,))
-                if not cursor.fetchone():
-                    logger.warning(f'Viagem id={id} não encontrada.')
-                    return jsonify({'erro': 'Viagem não encontrada!'}), 404
-                logger.warning(f'Viagem id={id} não pode ser finalizada.')
-                return jsonify({'erro': 'Viagem não pode ser finalizada!'}), 409
-            
-            logger.info('Viagem finalizada com sucesso.')
-            return '', 204
-    
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao finalizar viagem: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao finalizar viagem!'}), 500
-    
-
-@app3.route('/admin/viagens/<int:id>/finalizar', methods=['PATCH'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def finalizar_viagens_admin(id):
-    try:
-        logger.info(f'Finalizando viagem com id={id}...')
-
-        with conexao() as cursor:
-            cursor.execute(
                 "UPDATE viagens v INNER JOIN registros_pagamento p" \
                 "   ON p.id_viagem = v.id SET v.status = 'finalizada'"\
                 "   WHERE v.id = %s AND v.status = 'em_andamento'"\
-                "   AND p.pagamento = 'pago'")
+                "   AND p.pagamento = 'pago'", (id,))
             
             if cursor.rowcount == 0:
                 cursor.execute('SELECT id FROM viagens WHERE id = %s', (id,))
                 if not cursor.fetchone():
                     logger.warning(f'Viagem id={id} não encontrada.')
                     return jsonify({'erro': 'Viagem não encontrada!'}), 404
-                logger.warning(f'Viagem id={id} não pode ser finalizada.')
-                return jsonify({'erro': 'Viagem não pode ser finalizada!'}), 409
+                logger.warning(
+                    f'Viagem id={id} não está em andamento ou pagamento não foi confirmado')
+                return jsonify({'erro': 'Viagem não está em andamento'\
+                                 ' ou pagamento não foi confirmado!'}), 409
             
             logger.info('Viagem finalizada com sucesso.')
             return '', 204
@@ -1517,7 +1483,6 @@ def finalizar_viagens_admin(id):
     except Exception as erro:
         logger.error(f'Erro inesperado ao finalizar viagem: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao finalizar viagem!'}), 500
-    
     
 
 register_erro_handlers(app3)
