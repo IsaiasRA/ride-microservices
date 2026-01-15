@@ -120,13 +120,16 @@ with conexao() as cursor:
             CREATE TABLE IF NOT EXISTS passageiros (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 nome VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(nome)) > 0),
-                cpf CHAR(11) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cpf)) = 11),
-                telefone VARCHAR(20) NOT NULL UNIQUE CHECK(LENGTH(TRIM(telefone)) >= 8),
+                cpf CHAR(11) NOT NULL CHECK(LENGTH(TRIM(cpf)) = 11),
+                telefone VARCHAR(20) NOT NULL CHECK(LENGTH(TRIM(telefone)) >= 8),
                 saldo DECIMAL(10, 2) DEFAULT 0 CHECK(saldo >= 0),
                 status ENUM('ativo', 'bloqueado') DEFAULT 'ativo',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-                   ON UPDATE CURRENT_TIMESTAMP
+                   ON UPDATE CURRENT_TIMESTAMP,
+                
+                UNIQUE KEY uk_passa_cpf (cpf),
+                UNIQUE KEY uk_passa_telefone (telefone)
             ) ENGINE = InnoDB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
         ''')
 
@@ -150,18 +153,21 @@ with conexao() as cursor:
             CREATE TABLE IF NOT EXISTS motoristas (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 nome VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(nome)) > 0),
-                cnh CHAR(11) NOT NULL UNIQUE CHECK(LENGTH(TRIM(cnh)) = 11),
+                cnh CHAR(11) NOT NULL CHECK(LENGTH(TRIM(cnh)) = 11),
                 telefone VARCHAR(20) NOT NULL UNIQUE CHECK(LENGTH(TRIM(telefone)) >= 8),
                 categoria_cnh ENUM('A', 'B', 'C', 'D', 'E') NOT NULL,
-                placa CHAR(7) NOT NULL UNIQUE CHECK(LENGTH(TRIM(placa)) = 7),
+                placa CHAR(7) NOT NULL CHECK(LENGTH(TRIM(placa)) = 7),
                 modelo_carro VARCHAR(50) NOT NULL,
                 ano_carro INT UNSIGNED NOT NULL CHECK(ano_carro >= 1980),
                 status ENUM('ativo', 'bloqueado') DEFAULT 'ativo',
-                valor_passagem DECIMAL(10, 2) UNSIGNED NOT NULL,
                 quantia DECIMAL(10, 2) UNSIGNED DEFAULT 0 CHECK(quantia >= 0),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ON UPDATE CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+
+                UNIQUE KEY uk_moto_cnh (cnh),
+                UNIQUE KEY uk_moto_telefone (telefone),
+                UNIQUE KEY uk_moto_placa (placa)
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
 
@@ -227,9 +233,9 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute('CREATE INDEX idx_viagens_data ON viagens(criado_em)')
 
-    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_id_status'")
+    cursor.execute("SHOW INDEX FROM viagens WHERE Key_name = 'idx_viagens_status_data'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_viagens_id_status ON viagens(id, status)')
+        cursor.execute('CREATE INDEX idx_viagens_status_data ON viagens(status, criado_em)')
 
 
     cursor.execute('''
@@ -247,7 +253,7 @@ with conexao() as cursor:
             CONSTRAINT fk_endereco_viagem
                 FOREIGN KEY (id_viagem)
                 REFERENCES viagens(id)
-                ON DELETE CASCADE ON UPDATE RESTRICT,
+                ON DELETE RESTRICT ON UPDATE RESTRICT,
             
             UNIQUE KEY uk_viagem_tipo (id_viagem, tipo)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;''')
@@ -262,13 +268,15 @@ with conexao() as cursor:
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS registros_pagamento (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                id_viagem INT UNSIGNED UNIQUE,
+                id_viagem INT UNSIGNED NOT NULL,
                 remetente VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(remetente)) > 0),
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                pagamento ENUM('pago', 'cancelado', 'pendente') DEFAULT 'pago',
-                valor_viagem DECIMAL(10, 2) NOT NULL CHECK(valor_viagem > 0),
-                parcelas TINYINT UNSIGNED DEFAULT 1 CHECK(parcelas BETWEEN 1 AND 12),
+                pagamento ENUM('pendente', 'pago', 'cancelado',
+                    'estornado') DEFAULT 'pendente',
+                parcelas TINYINT UNSIGNED NULL CHECK(parcelas BETWEEN 1 AND 12),
+                valor_parcela DECIMAL(10, 2) NULL CHECK(valor_parcela > 0),
+                valor_total DECIMAL(10, 2) NOT NULL CHECK(valor_total > 0),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP,
@@ -279,10 +287,15 @@ with conexao() as cursor:
                    ON DELETE RESTRICT ON UPDATE RESTRICT,
 
                 CONSTRAINT chk_metodo_parcelas
-                    CHECK((metodo_pagamento IN ('pix', 'debito') AND parcelas = 1)
+                    CHECK(
+                        (metodo_pagamento IN ('pix', 'debito')
+                            AND parcelas IS NULL
+                            AND valor_parcela IS NULL)
                     OR (metodo_pagamento IN ('credito', 'boleto')
-                    AND parcelas BETWEEN 1 AND 12))
-
+                            AND parcelas BETWEEN 1 AND 12
+                            AND valor_parcela IS NOT NULL)),
+                
+                UNIQUE KEY uk_pagamento_viagem (id_viagem)
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
 
@@ -306,10 +319,12 @@ with conexao() as cursor:
     cursor.execute(
         "SHOW INDEX FROM registros_pagamento WHERE Key_name = 'idx_pagamento_viagem_status'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_pagamento_viagem_status ON registros_pagamento')
+        cursor.execute(
+            'CREATE INDEX idx_pagamento_viagem_status ON' \
+            ' registros_pagamento(id_viagem, pagamento)')
 
 
-@app1.route('/passageiros', methods=['GET'])
+@app1.route('/admin/passageiros', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def listar_passageiros_admin():
@@ -344,10 +359,10 @@ def listar_passageiros_admin():
         return jsonify({'erro': 'Erro inesperado ao listar passageiros!'}), 500
 
 
-@app1.route('/passageiros/<int:id>', methods=['GET'])
+@app1.route('/admin/passageiros/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
-def buscar_passageiro(id):
+def buscar_passageiro_admin(id):
     try:
         logger.info(f'Buscando passageiro com id={id}...')
 
@@ -635,7 +650,7 @@ def logout():
         return jsonify({'erro': 'Erro inesperado no logout!'}), 500
 
 
-@app1.route('/passageiros', methods=['POST'])
+@app1.route('/admin/passageiros', methods=['POST'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def adicionar_passageiro_admin():
@@ -698,7 +713,7 @@ def adicionar_passageiro_admin():
         return jsonify({'erro': 'Erro inesperado ao adicionar passageiro!'}), 500
 
 
-@app1.route('/passageiros/<int:id>', methods=['PATCH'])
+@app1.route('/admin/passageiros/<int:id>', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def atualizar_passageiro_admin(id):
@@ -764,7 +779,7 @@ def atualizar_passageiro_admin(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar passageiro!'}), 500
 
 
-@app1.route('/passageiros/<int:id>/bloquear', methods=['PATCH'])
+@app1.route('/admin/passageiros/<int:id>/bloquear', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def bloquear_passageiro_admin(id):
@@ -795,7 +810,7 @@ def bloquear_passageiro_admin(id):
         return jsonify({'erro': 'Erro inesperado ao bloquear passageiro!'}), 500
 
 
-@app1.route('/passageiros/<int:id>/reativar', methods=['PATCH'])
+@app1.route('/admin/passageiros/<int:id>/reativar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def reativar_passageiro_admin(id):
@@ -833,7 +848,7 @@ register_erro_handlers(app1)
 app2 = Flask('API2')
 
 
-@app2.route('/motoristas', methods=['GET'])
+@app2.route('/admin/motoristas', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def listar_motoristas_admin():
@@ -842,8 +857,8 @@ def listar_motoristas_admin():
 
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, nome, cnh, telefone, categoria_cnh, placa,
-                       modelo_carro, ano_carro, status, valor_passagem,
+                SELECT id, nome, cnh, telefone, categoria_cnh,
+                       placa, modelo_carro, ano_carro, status,
                        quantia, criado_em, atualizado_em
                     FROM motoristas ORDER BY criado_em DESC''')
             dados = [{
@@ -856,10 +871,9 @@ def listar_motoristas_admin():
                 'modelo_carro': m[6],
                 'ano_carro': m[7],
                 'status': m[8],
-                'valor_passagem': m[9],
-                'quantia': m[10],
-                'criado_em': m[11],
-                'atualizado_em': m[12]
+                'quantia': m[9],
+                'criado_em': m[10],
+                'atualizado_em': m[11]
             } for m in cursor.fetchall()]
 
             if not dados:
@@ -874,7 +888,7 @@ def listar_motoristas_admin():
         return jsonify({'erro': 'Erro inesperado ao listar motoristas!'}), 500
 
 
-@app2.route('/motoristas/<int:id>', methods=['GET'])
+@app2.route('/admin/motoristas/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def buscar_motorista_admin(id):
@@ -882,8 +896,8 @@ def buscar_motorista_admin(id):
         logger.info(f'Buscando motorista com id={id}...')
         with conexao() as cursor:
             cursor.execute('''
-                SELECT id, nome, cnh, telefone, categoria_cnh, placa,
-                       modelo_carro, ano_carro, status, valor_passagem,
+                SELECT id, nome, cnh, telefone, categoria_cnh,
+                       placa, modelo_carro, ano_carro, status,
                        quantia, criado_em, atualizado_em
                     FROM motoristas WHERE id = %s''', (id,))
             dado = cursor.fetchone()
@@ -903,10 +917,9 @@ def buscar_motorista_admin(id):
                 'modelo_carro': dado[6],
                 'ano_carro': dado[7],
                 'status': dado[8],
-                'valor_passagem': dado[9],
-                'quantia': dado[10],
-                'criado_em': dado[11],
-                'atualizado_em': dado[12]
+                'quantia': dado[9],
+                'criado_em': dado[10],
+                'atualizado_em': dado[11]
             }), 200
 
     except Exception as erro:
@@ -914,7 +927,7 @@ def buscar_motorista_admin(id):
         return jsonify({'erro': 'Erro inesperado ao buscar motorista!'}), 500
 
 
-@app2.route('/motoristas', methods=['POST'])
+@app2.route('/admin/motoristas', methods=['POST'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def adicionar_motorista_admin():
@@ -930,8 +943,7 @@ def adicionar_motorista_admin():
             'categoria_cnh': lambda v: str(v).strip().upper(),
             'placa': lambda v: str(v).strip().upper(),
             'modelo_carro': lambda v: str(v).strip(),
-            'ano_carro': lambda v: int(v),
-            'valor_passagem': lambda v: Decimal(str(v)).quantize(Decimal('0.01'))
+            'ano_carro': lambda v: int(v)
         }
 
         REGRAS = {
@@ -942,8 +954,7 @@ def adicionar_motorista_admin():
             'placa': lambda v: re.fullmatch(
                 r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v) is not None,
             'modelo_carro': lambda v: v != '',
-            'ano_carro': lambda v: v >= 1980,
-            'valor_passagem': lambda v: v > 0
+            'ano_carro': lambda v: v >= 1980
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -971,11 +982,11 @@ def adicionar_motorista_admin():
             cursor.execute('''
                 INSERT INTO motoristas
                     (nome, cnh, telefone, categoria_cnh,
-                     placa, modelo_carro, ano_carro, valor_passagem)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
+                     placa, modelo_carro, ano_carro)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s)''',
                            (dados['nome'], dados['cnh'], dados['telefone'],
-                            dados['categoria_cnh'], dados['placa'], dados['modelo_carro'],
-                               dados['ano_carro'], dados['valor_passagem']))
+                            dados['categoria_cnh'], dados['placa'],
+                            dados['modelo_carro'], dados['ano_carro']))
 
             novo_id = cursor.lastrowid
             logger.info(f'Motorista id={novo_id} adicionado com sucesso.')
@@ -987,7 +998,7 @@ def adicionar_motorista_admin():
         return jsonify({'erro': 'Erro inesperado ao adicionar motorista!'}), 500
 
 
-@app2.route('/motoristas/<int:id>', methods=['PATCH'])
+@app2.route('/admin/motoristas/<int:id>', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def atualizar_motorista_admin(id):
@@ -1002,8 +1013,7 @@ def atualizar_motorista_admin(id):
             'categoria_cnh': lambda v: str(v).strip().upper(),
             'placa': lambda v: str(v).strip().upper(),
             'modelo_carro': lambda v: str(v).strip(),
-            'ano_carro': lambda v: int(v),
-            'valor_passagem': lambda v: Decimal(str(v)).quantize(Decimal('0.01'))
+            'ano_carro': lambda v: int(v)
         }
 
         REGRAS = {
@@ -1013,8 +1023,7 @@ def atualizar_motorista_admin(id):
             'placa': lambda v: re.fullmatch(
                 r'[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2}', v) is not None,
             'modelo_carro': lambda v: v != '',
-            'ano_carro': lambda v: v >= 1980,
-            'valor_passagem': lambda v: v > 0
+            'ano_carro': lambda v: v >= 1980
         }
 
         enviados = {k: v for k, v in dados.items() if k in REGRAS and v is not None}
@@ -1063,7 +1072,7 @@ def atualizar_motorista_admin(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar motorista!'}), 500
 
 
-@app2.route('/motoristas/<int:id>/bloquear', methods=['PATCH'])
+@app2.route('/admin/motoristas/<int:id>/bloquear', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def bloquear_motorista_admin(id):
@@ -1095,7 +1104,7 @@ def bloquear_motorista_admin(id):
         return jsonify({'erro': 'Erro inesperado ao bloquear motorista!'}), 500
 
 
-@app2.route('/motoristas/<int:id>/reativar', methods=['PATCH'])
+@app2.route('/admin/motoristas/<int:id>/reativar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def reativar_motorista_admin(id):
@@ -1252,7 +1261,8 @@ def criar_viagem_admin():
         REGRAS_VIAGENS = {
             'id_passageiro': lambda v: v > 0,
             'id_motorista': lambda v: v > 0,
-            'km': lambda v: v > 0
+            'km': lambda v: v > 0,
+            'valor_por_km': lambda v: v > 0
         }
 
         faltando = [c for c in REGRAS_VIAGENS if c not in dados or dados[c] is None]
@@ -1268,7 +1278,7 @@ def criar_viagem_admin():
                 if campo in ('id_passageiro', 'id_motorista'):
                     valor = int(valor)
                 
-                elif campo == 'km':
+                elif campo in ('km', 'valor_por_km'):
                     try:
                         valor = Decimal(str(valor)).quantize(Decimal('0.01'))
                     except InvalidOperation:
@@ -1317,7 +1327,7 @@ def criar_viagem_admin():
                         'Viagem de passageiro já foi criada ou está em andamento!')
 
                 cursor.execute('''
-                    SELECT valor_passagem, status
+                    SELECT status
                         FROM motoristas WHERE id = %s''',
                         (dados['id_motorista'],))
                 
@@ -1328,7 +1338,7 @@ def criar_viagem_admin():
                         f"Motorista {dados['id_motorista']} não encontrado.")
                     raise NotFound('Motorista não encontrado!')
                 
-                if motorista[1] == 'bloqueado':
+                if motorista[0] == 'bloqueado':
                     logger.warning(f"Motorista id={dados['id_motorista']} bloqueado.")
                     raise Conflict('Motorista inativo para viagem!')
                 
@@ -1344,14 +1354,11 @@ def criar_viagem_admin():
 
                 try:
                     km = Decimal(str(dados['km'])).quantize(Decimal('0.01'))
-                    valor_por_km = Decimal(str(motorista[0])).quantize(Decimal('0.01'))
+                    valor_por_km = Decimal(str(dados['valor_por_km'])).quantize(
+                        Decimal('0.01'))
                 except InvalidOperation as erro:
                     logger.warning(f'Erro ao coletar dados: {str(erro)}')
                     raise BadRequest('Erro ao coletar dados!')
-
-                if valor_por_km <= 0:
-                    logger.warning(f'Valor da passagem não pode ser negativo.')
-                    raise BadRequest('Valor da passagem não pode ser negativo!')
 
                 total = (valor_por_km * km).quantize(Decimal('0.01'))
 
@@ -1424,6 +1431,38 @@ def criar_viagem_admin():
         return jsonify({'erro': 'Erro inesperado ao criar viagem!'}), 500
 
 
+@app3.route('/admin/viagens/<int:id>/cancelar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def cancelar_viagem_admin(id):
+    try:
+        logger.info(f'Cancelar viagem com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute(
+                "UPDATE viagens SET status = 'cancelada' WHERE id = %s" \
+                "   AND status = 'criada'", (id,))
+            
+            if cursor.rowcount == 0:
+                cursor.execute('SELECT id FROM viagens WHERE id = %s', (id,))
+                if not cursor.fetchone():
+                    logger.warning(f'Viagem id={id} não encontrada.')
+                    return jsonify({'erro': 'Viagem não encontrada!'}), 404
+                logger.warning(
+                    f'''Viagem id={id} já cancelada ou finalizada
+                      ou iniciada não pode ser cancelada.''')
+                return jsonify(
+                    {'erro': '''Viagem já cancelada ou finalizada
+                      ou iniciada não pode ser cancelada!'''}), 409
+            
+            logger.info(f'Viagem cancelada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao cancelar viagem: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao cancelar viagem!'}), 500
+
+
 @app3.route('/admin/viagens/<int:id>/iniciar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
@@ -1442,8 +1481,9 @@ def iniciar_viagem_admin(id):
                 if not cursor.fetchone():
                     logger.warning(f'Viagem id={id} não encontrada.')
                     return jsonify({'erro': 'Viagem não encontrada!'}), 404
-                logger.warning(f'Viagem id={id} não pode ser iniciada.')
-                return jsonify({'erro': 'Viagem não pode ser iniciada!'}), 409
+                logger.warning(f'Viagem id={id} precisar estar criada.')
+                return jsonify(
+                    {'erro': 'Viagem precisar estar criada para ser iniciada!'}), 409
             
             logger.info('Viagem iniciada com sucesso.')
             return '', 204
@@ -1483,7 +1523,7 @@ def finalizar_viagens_admin(id):
     except Exception as erro:
         logger.error(f'Erro inesperado ao finalizar viagem: {str(erro)}')
         return jsonify({'erro': 'Erro inesperado ao finalizar viagem!'}), 500
-    
+
 
 register_erro_handlers(app3)
 
@@ -1491,18 +1531,19 @@ register_erro_handlers(app3)
 app4 = Flask('API4')
 
 
-@app4.route('/registros-pagamento', methods=['GET'])
+@app4.route('/admin/registros-pagamento', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def listar_registros_pagamento():
+@rota_protegida(role='admin')
+def listar_registros_pagamento_admin():
     try:
         logger.info('Listando registros de pagamentos...')
+
         with conexao() as cursor:
             cursor.execute('''
                 SELECT id, id_viagem, remetente, recebedor,
-                       metodo_pagamento, pagamento, status,
-                       valor_viagem, criado_em, atualizado_em
-                    FROM registros_pagamento''')
+                       metodo_pagamento, pagamento, valor_viagem,
+                       parcelas, criado_em, atualizado_em
+                    FROM registros_pagamento ORDER BY criado_em DESC''')
             
             dados = [{
                 'id': rg[0],
@@ -1511,8 +1552,8 @@ def listar_registros_pagamento():
                 'recebedor': rg[3],
                 'metodo_pagamento': rg[4],
                 'pagamento': rg[5],
-                'status': rg[6],
-                'valor_viagem': rg[7],
+                'valor_viagem': rg[6],
+                'parcelas': rg[7],
                 'criado_em': rg[8],
                 'atualizado_em': rg[9]
             } for rg in cursor.fetchall()]
@@ -1530,17 +1571,17 @@ def listar_registros_pagamento():
             {'erro': 'Erro inesperado ao listar registros de pagamentos!'}), 500
 
 
-@app4.route('/registros-pagamento/<int:id>', methods=['GET'])
+@app4.route('/admin/registros-pagamento/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def buscar_registro_pagamento(id):
+@rota_protegida(role='admin')
+def buscar_registro_pagamento_admin(id):
     try:
         logger.info(f'Buscando registro de pagamento com id={id}...')
         with conexao() as cursor:
             cursor.execute('''
                 SELECT id, id_viagem, remetente, recebedor,
-                       metodo_pagamento, pagamento, status,
-                       valor_viagem, criado_em, atualizado_em
+                       metodo_pagamento, pagamento, valor_viagem,
+                       parcelas, criado_em, atualizado_em
                     FROM registros_pagamento WHERE id = %s''',
                     (id,))
             dado = cursor.fetchone()
@@ -1557,8 +1598,8 @@ def buscar_registro_pagamento(id):
                 'recebedor': dado[3],
                 'metodo_pagamento': dado[4],
                 'pagamento': dado[5],
-                'status': dado[6],
-                'valor_viagem': dado[7],
+                'valor_viagem': dado[6],
+                'parcelas': dado[7],
                 'criado_em': dado[8],
                 'atualizado_em': dado[9]
             }), 200
@@ -1569,17 +1610,18 @@ def buscar_registro_pagamento(id):
         return jsonify({'erro': 'Erro inesperado ao buscar registro de pagamento!'}), 500
 
 
-@app4.route('/registros-pagamento', methods=['POST'])
+@app4.route('/admin/registros-pagamento', methods=['POST'])
 @limiter.limit('100 per hour')
-@rota_protegida
-def adicionar_pagamento():
+@rota_protegida(role='admin')
+def criar_pagamento_admin():
     try:
         logger.info('Adicionando registro de pagamentos...')
 
         dados = validar_json()
 
         REGRAS = {
-            'id_viagem': lambda v: isinstance(v, int) and v > 0
+            'id_viagem': lambda v: v > 0,
+            'metodo_pagamento': lambda v: v in ('pix', 'credito', 'debito', 'boleto')
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -1590,72 +1632,132 @@ def adicionar_pagamento():
 
         for campo, regra in REGRAS.items():
             try:
-                valor = int(dados[campo])
+                valor = dados[campo]
+
+                if campo == 'id_viagem':
+                    valor = int(valor)
+
+                elif campo == 'metodo_pagamento':
+                    valor = str(valor).strip().lower()
 
                 if not regra(valor):
                     raise ValueError
 
                 dados[campo] = valor
+
             except Exception:
                 logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
 
         with conexao() as cursor:
-            cursor.execute('''
-                SELECT nome_passageiro, nome_motorista,
-                       metodo_pagamento, total_viagem, status
-                    FROM viagens WHERE id = %s FOR UPDATE''',
-                (dados['id_viagem'],))
-
-            viagem = cursor.fetchone()
-
-            if not viagem:
-                logger.warning(
-                    f"Viagem id={dados['id_viagem']} não encontrada.")
-                return jsonify({'erro': 'Viagem não encontrada!'}), 404
-            
-            cursor.execute('''
-                SELECT id FROM registros_pagamento
-                    WHERE id_viagem = %s''', (dados['id_viagem'],))
-            
-            if cursor.fetchone():
-                logger.warning(f"Pagamento id={dados['id_viagem']} já existe.")
-                return jsonify({'erro': 'Pagamento de viagem já está registrado!'}), 409
-
             try:
-                remetente = formatar_nome(viagem[0])
-                recebedor = formatar_nome(viagem[1])
-                metodo_pagamento = str(viagem[2]).strip().lower()
-                valor_viagem = Decimal(str(viagem[3])).quantize(Decimal('0.01'))
-                status_viagem = str(viagem[4]).strip().lower()
-            except (ValueError, TypeError, InvalidOperation) as erro:
-                logger.warning(f'Erro ao coletar dados em banco: {str(erro)}')
-                return jsonify({'erro': 'Erro ao coletar dados em banco SQL!'}), 400
-            
-            if status_viagem != 'confirmada':
-                logger.warning('Viagem cancelada.')
-                return jsonify({'erro': 'Viagem cancelada não pode ser registrada!'}), 400
+                cursor.execute('START TRANSACTION')
 
-            cursor.execute('''
-                    INSERT INTO registros_pagamento
-                        (id_viagem, remetente, recebedor,
-                         metodo_pagamento, valor_viagem
-                        ) VALUES (%s, %s, %s, %s, %s)
-                    ''', (dados['id_viagem'], remetente, recebedor,
-                          metodo_pagamento, valor_viagem))
+                cursor.execute(
+                    'SELECT id FROM registros_pagamento' \
+                    ' WHERE id_viagem = %s FOR UPDATE',
+                    (dados['id_viagem'],))
+                
+                if cursor.fetchone():
+                    logger.warning(
+                        f"Pagamento para id={dados['id_viagem']} já foi registrado.")
+                    raise BadRequest('Pagamento já foi registrado!')
 
-            novo_id = cursor.lastrowid
-            logger.info(
-                f'Registro de pagamento id={novo_id} adicionado com sucesso.')
-            return jsonify(
-                {'mensagem': 'Registro de pagamento adicionado com sucesso!',
-                 'id': novo_id}), 201
+                cursor.execute('''
+                    SELECT id_passageiro, id_motorista, total
+                        FROM viagens WHERE id = %s
+                        AND status = 'em_andamento'
+                            FOR UPDATE''',
+                    (dados['id_viagem'],))
+
+                viagem = cursor.fetchone()
+
+                if not viagem:
+                    logger.warning(
+                        f'''Viagem id={dados['id_viagem']} não encontrado
+                        ou não está em andamento.''')
+                    raise BadRequest('Viagem não encontrado ou não está em andamento!')
+                
+                cursor.execute(
+                    "SELECT nome FROM passageiros WHERE id = %s" \
+                    "   AND status = 'ativo'", (viagem[0],))
+                
+                passageiro = cursor.fetchone()
+
+                if not passageiro:
+                    logger.warning(
+                        f'Passageiro id={viagem[0]} não encontrado ou bloqueado.')
+                    raise BadRequest('Passageiro não encontrado ou bloqueado!')
+                
+                cursor.execute(
+                    "SELECT nome FROM motoristas WHERE id = %s" \
+                    "   AND status = 'ativo'", (viagem[1],))
+                
+                motorista = cursor.fetchone()
+
+                if not motorista:
+                    logger.warning(
+                        f'Motorista id={viagem[1]} não encontrado ou bloqueado.')
+                    raise BadRequest('Motorista não encontrado ou bloqueado!')
+                
+                try:
+                    remetente = formatar_nome(passageiro[0])
+                    recebedor = formatar_nome(motorista[0])
+                    valor_total = Decimal(str(viagem[2])).quantize(Decimal('0.01'))
+                except (ValueError, TypeError, InvalidOperation) as erro:
+                    logger.warning(f'Erro ao coletar dados em banco: {str(erro)}')
+                    raise BadRequest('Erro ao coletar dados em banco SQL!')
+                
+                if dados['metodo_pagamento'] in ('credito', 'boleto'):
+                    if 'parcelas' not in dados:
+                        logger.warning('Parcelas obrigatórias para crédito ou boleto.')
+                        raise BadRequest('Parcelas obrigatórias para crédito ou boleto!')
+                    try:
+                        parcelas = int(dados['parcelas'])
+                    except ValueError:
+                        logger.warning('Parcelas inválidas.')
+                        raise BadRequest('Parcelas inválidas!')
+                    
+                    if parcelas < 1 or parcelas > 12:
+                        logger.warning('Parcelas deve ser entre 1 e 12.')
+                        return jsonify(
+                            {'erro': 'Parcelas deve estar entre 1 e 12!'}), 400
+                    
+                else:
+                    parcelas = 1
+                
+                cursor.execute('''
+                        INSERT INTO registros_pagamento
+                            (id_viagem, remetente, recebedor,
+                            metodo_pagamento, parcelas, valor_total
+                            ) VALUES (%s, %s, %s, %s, %s, %s)
+                        ''', (dados['id_viagem'], remetente, recebedor,
+                            dados['metodo_pagamento'], parcelas, valor_total))
+
+                novo_id = cursor.lastrowid
+
+                cursor.execute('COMMIT')
+
+                logger.info(
+                    f'Pagamento id={novo_id} criado com sucesso.')
+                return jsonify(
+                    {'mensagem': 'Pagamento criado com sucesso!',
+                    'id': novo_id,
+                    'total': valor_total}), 201
+
+            except Exception:
+                cursor.execute('ROLLBACK')
+                raise
+
+    except BadRequest as erro:
+        logger.warning(f'Erro de valores inválidos: {erro.description}')
+        return jsonify({'erro': erro.description}), erro.code
 
     except Exception as erro:
         logger.error(
-            f'Erro inesperado ao adicionar registro de pagamento: {str(erro)}')
+            f'Erro inesperado ao criar pagamento: {str(erro)}')
         return jsonify(
-            {'erro': 'Erro inesperado ao adicionar registro de pagamento!'}), 500
+            {'erro': 'Erro inesperado ao criar pagamento!'}), 500
 
 
 @app4.route('/registros-pagamento/<int:id>/cancelar', methods=['PATCH'])
