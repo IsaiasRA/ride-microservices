@@ -310,7 +310,7 @@ with conexao() as cursor:
         cursor.execute(
             'CREATE INDEX idx_mov_status_vencimento' \
             ' ON movimentacoes_financeiras(status, data_vencimento)')
-        
+    
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS motoristas (
