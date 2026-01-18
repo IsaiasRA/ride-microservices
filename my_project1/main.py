@@ -122,7 +122,7 @@ with conexao() as cursor:
                 nome VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(nome)) > 0),
                 cpf CHAR(11) NOT NULL CHECK(LENGTH(TRIM(cpf)) = 11),
                 telefone VARCHAR(20) NOT NULL CHECK(LENGTH(TRIM(telefone)) >= 8),
-                status ENUM('ativo', 'bloqueado') DEFAULT 'ativo',
+                status ENUM('ativo', 'bloqueado') NOT NULL DEFAULT 'ativo',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP,
@@ -162,8 +162,15 @@ with conexao() as cursor:
                 'salario', 'pagamento') NOT NULL,
             titular_nome VARCHAR(150) NOT NULL,
             titular_documento VARCHAR(20) NOT NULL,
-            status ENUM('ativa', 'bloqueada', 'encerrada') DEFAULT 'ativa',
+            status ENUM('ativa', 'bloqueada', 'encerrada') NOT NULL DEFAULT 'ativa',
             principal BOOLEAN DEFAULT FALSE,
+            principal_ativa TINYINT(1)
+                GENERATED ALWAYS AS (
+                        CASE
+                            WHEN principal = 1 AND status = 'ativa' THEN 1
+                            ELSE NULL
+                        END
+                ) STORED,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
@@ -177,6 +184,13 @@ with conexao() as cursor:
                 ON DELETE RESTRICT ON UPDATE CASCADE
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
     ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM contas_bancarias WHERE Key_name = 'uq_principal_ativa'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE UNIQUE INDEX uq_principal_ativa' \
+            ' ON contas_bancarias(id_passageiro, principal_ativa)')
 
     cursor.execute(
         "SHOW INDEX FROM contas_bancarias WHERE Key_name = 'idx_conta_passageiro'")
@@ -205,28 +219,319 @@ with conexao() as cursor:
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS contas_plataforma (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            nome VARCHAR(100) NOT NULL,
-            saldo_atual DECIMAL(14, 2) DEFAULT 0.00 CHECK(saldo_atual >= 0),
+            id_passageiro INT UNSIGNED NOT NULL,
+            id_conta_bancaria INT UNSIGNED NOT NULL,
+            tipo ENUM(
+                   'recebimento',
+                   'repasse',
+                   'comissao',
+                   'custodia',
+                   'taxas'
+                   ) NOT NULL,
+            saldo_atual DECIMAL(14, 2) NOT NULL DEFAULT 0.00 CHECK(saldo_atual >= 0),
+            saldo_disponivel DECIMAL(14, 2) NOT NULL
+                    DEFAULT 0.00 CHECK(saldo_disponivel >= 0),
+            saldo_bloqueado DECIMAL(14, 2) NOT NULL
+                    DEFAULT 0.00 CHECK(saldo_bloqueado >= 0),
+            status ENUM('ativa', 'bloqueada', 'encerrada') NOT NULL DEFAULT 'ativa',
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
-            UNIQUE KEY uk_plataforma_nome (nome)
+            CONSTRAINT fk_plataforma_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT UPDATE CASCADE,
+            
+            CONSTRAINT fk_plataforma_conta_bancaria
+                FOREIGN KEY (id_conta_bancaria)
+                REFERENCES contas_bancarias(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            UNIQUE KEY uk_plataforma_tipo_passageiro (id_passageiro, tipo)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
     ''')
 
     cursor.execute(
-        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_conta_nome'")
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_passa'")
     if not cursor.fetchone():
         cursor.execute(
-            'CREATE INDEX idx_conta_nome ON contas_plataforma(nome)')
+            'CREATE INDEX idx_plataforma_passa' \
+            ' ON contas_plataforma(id_passageiro)')
+
+    cursor.execute(
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_conta'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_plataforma_conta' \
+            ' ON contas_plataforma(id_conta_bancaria)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_tipo'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_plataforma_tipo ON contas_plataforma(tipo)')
+
+    cursor.execute(
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_plataforma_status ON contas_plataforma(status)')
     
     cursor.execute(
         "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_conta_data'")
     if not cursor.fetchone():
         cursor.execute('CREATE INDEX idx_conta_data ON contas_plataforma(criado_em)')
+
+    cursor.execute(
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_plataforma_passa_status' \
+            ' ON contas_plataforma(id_passageiro, status)')
+    
+    cursor.execute(
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_conta_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_plataforma_conta_status' \
+            ' ON contas_plataforma(id_conta_bancaria, status)')
+        
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagamentos_pix (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            txid VARCHAR(64) NOT NULL,
+            valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            status ENUM('pendente', 'confirmado', 'cancelado')
+                NOT NULL DEFAULT 'pendente',
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            
+            CONSTRAINT fk_pix_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            UNIQUE KEY uk_pix_txid (txid)  
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute("SHOW INDEX FROM pagamentos_pix WHERE Key_name = 'idx_pix_passa'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_pix_passa ON pagamentos_pix(id_passageiro)')
+
+    cursor.execute("SHOW INDEX FROM pagamentos_pix WHERE Key_name = 'idx_pix_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_pix_status ON pagamentos_pix(status)')
+
+    cursor.execute("SHOW INDEX FROM pagamentos_pix WHERE Key_name = 'idx_pix_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_pix_data ON pagamentos_pix(criado_em)')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_pix WHERE Key_name = 'idx_pix_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_pix_passa_status ON pagamentos_pix(id_passageiro, status)')
+    
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagamentos_debito (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            autorizacao VARCHAR(64) NOT NULL,
+            valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            status ENUM('pendente', 'aprovado', 'negado', 'estornado')
+                NOT NULL DEFAULT 'pendente',
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            
+            CONSTRAINT fk_debito_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            UNIQUE KEY uk_debito_autorizacao (autorizacao)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_debito WHERE Key_name = 'idx_debito_passa'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_debito_passa ON pagamentos_debito(id_passageiro)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_debito WHERE Key_name = 'idx_debito_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_debito_status ON pagamentos_debito(status)')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_debito WHERE Key_name = 'idx_debito_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_debito_data ON pagamentos_debito(criado_em)')
+    
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_debito WHERE Key_name = 'idx_debito_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_debito_passa_status' \
+            ' ON pagamentos_debito(id_passageiro, status)')
+        
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagamentos_credito (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            limite_total DECIMAL(14, 2) NOT NULL CHECK(limite_total > 0),
+            limite_utilizado DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+            status ENUM('ativo', 'bloqueado') NOT NULL DEFAULT 'ativo',
+                   
+            CONSTRAINT fk_credito_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT UPDATE CASCADE,
+                
+            CONSTRAINT chk_credito_utilizado_total
+                CHECK(limite_utilizado <= limite_total),
+            
+            UNIQUE KEY uk_credito_passageiro (id_passageiro)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito WHERE Key_name = 'idx_credito_passa'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_credito_passa ON pagamentos_credito(id_passageiro)')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito WHERE Key_name = 'idx_credito_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_credito_status ON pagamentos_credito(status)')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito WHERE Key_name = 'idx_credito_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_credito_passa_status ON' \
+            ' pagamentos_credito(id_passageiro, status)')
+
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS faturas_credito (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            vencimento DATE NOT NULL,
+            valor_total DECIMAL(14, 2) NOT NULL CHECK(valor_total > 0),
+            status ENUM('aberta', 'paga', 'fechada', 'atrasada', 'cancelada')
+                    NOT NULL DEFAULT 'aberta',
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            
+            CONSTRAINT fk_fatura_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT UPDATE CASCADE,
+            
+            UNIQUE KEY uk_fatura_passa_vencimento (id_passageiro, vencimento)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute("SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_passa'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_fatura_passa ON faturas_credito(id_passageiro)')
+
+    cursor.execute(
+        "SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_fatura_status ON faturas_credito(status)')
+
+    cursor.execute("SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_fatura_data ON faturas_credito(criado_em)')
+
+    cursor.execute(
+        "SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_fatura_passa_status' \
+            ' ON faturas_credito(id_passageiro, status)')
         
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parcelas_credito (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_fatura BIGINT UNSIGNED NOT NULL,
+            parcela INT NOT NULL CHECK(parcela > 0),
+            valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            status ENUM('pendente', 'paga', 'cancelada')
+                NOT NULL DEFAULT 'pendente',
+            
+            CONSTRAINT fk_parcela_fatura
+                FOREIGN KEY (id_fatura)
+                REFERENCES faturas_credito(id),
+            
+            UNIQUE KEY uk_fatura_parcela (id_fatura, parcela)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM parcelas_credito WHERE Key_name = 'idx_parcela_fatura'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_parcela_fatura ON parcelas_credito(id_fatura)')
+
+    cursor.execute(
+        "SHOW INDEX FROM parcelas_credito WHERE Key_name = 'idx_parcela_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_parcela_status ON parcelas_credito(status)')
+    
+    cursor.execute(
+        "SHOW INDEX FROM parcelas_credito WHERE Key_name = 'idx_parcela_fatura_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_parcela_fatura_status' \
+            ' ON parcelas_credito(id_fatura, status)')
+        
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagamentos_boleto (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            codigo_barras VARCHAR(100) NOT NULL,
+            valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            vencimento DATE NOT NULL,
+            status ENUM(
+                   'emitido',
+                   'pago',
+                   'vencido',
+                   'cancelado'
+                   ) NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            
+            CONSTRAINT fk_boleto_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT UPDATE CASCADE,
+            
+            UNIQUE KEY uk_boleto_codigo (codigo_barras)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_boleto WHERE Key_name = 'idx_boleto_passa'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_boleto_passa ON pagamentos_boleto(id_passageiro)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_boleto WHERE Key_name = 'idx_boleto_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_boleto_status ON pagamentos_boleto(status)')
+
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_boleto WHERE Key_name = 'idx_boleto_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_boleto_passa_status' \
+            ' ON pagamentos_boleto(id_passageiro, status)')
+
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS movimentacoes_financeiras (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -246,13 +551,17 @@ with conexao() as cursor:
                    'manual',
                    'sistema'
                    ) NOT NULL,
-            status ENUM('pendente', 'confirmada', 'cancelado') DEFAULT 'confirmada',
-            valor DECIMAL(10, 2) NOT NULL CHECK(valor > 0),
+            status ENUM('pendente', 'confirmada', 'cancelado')
+                   NOT NULL DEFAULT 'pendente',
+            valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            impacto_saldo ENUM('disponivel', 'bloqueado') NOT NULL,
             descricao VARCHAR(255) NOT NULL,
             referencia_externa VARCHAR(100) NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             liquidado_em DATETIME NULL,
             data_vencimento DATETIME NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_mov_conta
                 FOREIGN KEY (id_conta_plataforma)
@@ -261,16 +570,14 @@ with conexao() as cursor:
             
             CONSTRAINT chk_mov_status_liquidacao
                 CHECK((status = 'confirmada' AND liquidado_em IS NOT NULL)
-                OR status <> 'confirmada')
+                OR status <> 'confirmada'),
+            
+            CONSTRAINT chk_mov_impacto
+                CHECK(
+                   (status = 'pendente' AND impacto_saldo = 'bloqueado')
+                   OR status <> 'pendente')
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
     ''')
-
-    cursor.execute(
-        "SHOW INDEX FROM movimentacoes_financeiras WHERE Key_name = 'idx_mov_plataforma'")
-    if not cursor.fetchone():
-        cursor.execute(
-            'CREATE INDEX idx_mov_plataforma ON movimentacoes_financeiras'\
-            '(id_conta_plataforma)')
 
     cursor.execute(
         "SHOW INDEX FROM movimentacoes_financeiras WHERE Key_name = 'idx_mov_status'")
@@ -289,6 +596,14 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_mov_origem ON movimentacoes_financeiras(origem)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM movimentacoes_financeiras" \
+        " WHERE Key_name = 'idx_mov_referencia_externa'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_mov_referencia_externa' \
+            ' ON movimentacoes_financeiras(referencia_externa)')
         
     cursor.execute(
         "SHOW INDEX FROM movimentacoes_financeiras WHERE Key_name = 'idx_mov_tipo_origem'")
@@ -311,6 +626,14 @@ with conexao() as cursor:
             'CREATE INDEX idx_mov_status_vencimento' \
             ' ON movimentacoes_financeiras(status, data_vencimento)')
     
+    cursor.execute(
+        "SHOW INDEX FROM movimentacoes_financeiras" \
+        " WHERE Key_name = 'idx_mov_conta_status_data'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_mov_conta_status_data' \
+            ' ON movimentacoes_financeiras(id_conta_plataforma, status, criado_em)')
+    
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS motoristas (
@@ -322,7 +645,7 @@ with conexao() as cursor:
                 placa CHAR(7) NOT NULL CHECK(LENGTH(TRIM(placa)) = 7),
                 modelo_carro VARCHAR(50) NOT NULL,
                 ano_carro INT UNSIGNED NOT NULL CHECK(ano_carro >= 1980),
-                status ENUM('ativo', 'bloqueado') DEFAULT 'ativo',
+                status ENUM('ativo', 'bloqueado')NOT NULL DEFAULT 'ativo',
                 quantia DECIMAL(10, 2) UNSIGNED DEFAULT 0 CHECK(quantia >= 0),
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -363,7 +686,7 @@ with conexao() as cursor:
                 valor_por_km DECIMAL(10, 2) NOT NULL CHECK(valor_por_km > 0),
                 total DECIMAL(10, 2) NOT NULL CHECK(total > 0),
                 status ENUM('criada', 'em_andamento',
-                   'finalizada', 'cancelada') DEFAULT 'criada',
+                   'finalizada', 'cancelada') NOT NULL DEFAULT 'criada',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP,
@@ -436,7 +759,7 @@ with conexao() as cursor:
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
                 pagamento ENUM('pendente', 'pago', 'cancelado',
-                    'estornado') DEFAULT 'pendente',
+                    'estornado') NOT NULL DEFAULT 'pendente',
                 parcelas TINYINT UNSIGNED NULL CHECK(parcelas BETWEEN 1 AND 12),
                 valor_parcela DECIMAL(10, 2) NULL CHECK(valor_parcela > 0),
                 valor_total DECIMAL(10, 2) NOT NULL CHECK(valor_total > 0),
@@ -1306,9 +1629,9 @@ register_erro_handlers(app2)
 app3 = Flask('API3')
 
 
-@app3.route('/admin/passageiros/<int:id_passageiro>/contas-bancarias', methods=['GET'])
+@app3.route('/passageiros/<int:id_passageiro>/contas-bancarias', methods=['GET'])
 @limiter.limit('100 per hour')
-@rota_protegida(role='admin')
+@rota_protegida
 def listar_contas_bancarias_passageiro(id_passageiro):
     try:
         logger.info(f'Listando contas bancárias de passageiro com id={id_passageiro}...')
@@ -1563,6 +1886,8 @@ def tornar_conta_bancaria_principal(id):
         logger.info(f'Tornar conta bancária principal com id={id}...')
 
         with conexao() as cursor:
+            cursor.execute('START TRANSACTION')
+
             cursor.execute(
                 "SELECT id_passageiro, principal FROM contas_bancarias "\
                     "WHERE id = %s AND status = 'ativa' FOR UPDATE",
@@ -1571,6 +1896,7 @@ def tornar_conta_bancaria_principal(id):
             conta = cursor.fetchone()
 
             if not conta:
+                cursor.execute('ROLLBACK')
                 logger.warning(f'Conta bancária id={id} não encontrado ou inativa.')
                 return jsonify(
                     {'erro': 'Conta bancária não encontrada ou inativa!'}), 404
@@ -1578,6 +1904,7 @@ def tornar_conta_bancaria_principal(id):
             id_passageiro, ja_principal = conta
 
             if ja_principal:
+                cursor.execute('ROLLBACK')
                 logger.warning(f'Conta bancária id={id} já é principal.')
                 return jsonify({'erro': 'Conta bancária já é principal!'}), 409
             
@@ -1589,6 +1916,8 @@ def tornar_conta_bancaria_principal(id):
             cursor.execute('''
                 UPDATE contas_bancarias SET principal = TRUE
                     WHERE id = %s''', (id,))
+            
+            cursor.execute('COMMIT')
 
             logger.info(f'Conta bancária id={id} definida como principal com sucesso.')
             return '', 204
@@ -1597,8 +1926,150 @@ def tornar_conta_bancaria_principal(id):
         logger.error(f'Erro inesperado ao tornar conta bancária principal: {str(erro)}')
         return jsonify(
             {'erro': 'Erro inesperado ao tornar conta bancária principal!'}), 500
+    
+
+@app3.route('/admin/contas-bancarias/<int:id>/bloquear', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def bloquear_conta_bancaria(id):
+    try:
+        logger.info(f'Bloqueando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('''
+                SELECT id_passageiro, principal FROM contas_bancarias 
+                   WHERE id = %s AND status = 'ativa' FOR UPDATE''',
+                   (id,))
+            
+            conta = cursor.fetchone()
+            
+            if not conta:
+                logger.warning(
+                    f'Conta bancária id={id} não encontrada ou inativa.')
+                return jsonify({'erro': 'Conta bancária não encontrada ou inativa!'}), 404
+            
+            id_passageiro, principal = conta
+
+            if principal:
+                cursor.execute('''
+                    SELECT id FROM contas_bancarias WHERE id_passageiro = %s
+                        AND status = 'ativa' AND id != %s LIMIT 1''',
+                        (id_passageiro, id))
+                
+                if not cursor.fetchone():
+                    logger.warning(f'Conta principal id={id} única.')
+                    return jsonify(
+                        {'erro': 'Não é possivel bloquear a única'
+                        ' conta principal ativa!'}), 409
+                
+            cursor.execute(
+                "UPDATE contas_bancarias SET status = 'bloqueada', " \
+                "   principal = FALSE WHERE id = %s", (id,))
+            
+            logger.info(f'Conta bancária id={id} bloqueada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao bloquear conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao bloquear conta bancária!'}), 500
+    
+
+@app3.route('/admin/contas-bancarias/<int:id>/reativar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def reativar_conta_bancaria(id):
+    try:
+        logger.info(f'Reativando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('START TRANSACTION')
+
+            cursor.execute(
+                "SELECT status FROM contas_bancarias" \
+                " WHERE id = %s FOR UPDATE", (id,))
+            
+            conta = cursor.fetchone()
+
+            if not conta:
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} não encontrada.')
+                return jsonify({'erro': 'Conta bancária não encontrada!'}), 404
+            
+            if conta[0] == 'ativa':
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} já está ativa.')
+                return jsonify({'erro': 'Conta bancária já está ativa!'}), 409
+            
+            if conta[0] == 'encerrada':
+                cursor.execute('ROLLBACK')
+                logger.warning(
+                    f'Conta bancária id={id} está encerrada não pode ser reativada.')
+                return jsonify(
+                    {'erro': 'Conta bancária está encerrada não pode ser reativada!'}), 409
+            
+            cursor.execute('''
+                UPDATE contas_bancarias SET status = 'ativa', 
+                    principal = FALSE WHERE id = %s''', (id,))
+            
+            cursor.execute('COMMIT')
+            
+            logger.info(f'Conta bancária id={id} reativada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao reativar conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao reativar conta bancária!'}), 500
 
 
+@app3.route('/admin/contas-bancarias/<int:id>/encerrar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def encerrar_conta_bancaria(id):
+    try:
+        logger.info(f'Encerrando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('START TRANSACTION')
+
+            cursor.execute(
+                "SELECT status FROM contas_bancarias" \
+                "   WHERE id = %s FOR UPDATE", (id,))
+            
+            conta = cursor.fetchone()
+
+            if not conta:
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} não encontrada.')
+                return jsonify({'erro': 'Conta bancária não encontrada!'}
+                               ), 404
+            
+            if conta[0] == 'encerrada':
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} já foi encerrada.')
+                return jsonify({'erro': 'Conta bancária já foi encerrada!'}), 409
+
+            cursor.execute(
+                "UPDATE contas_bancarias SET status = 'encerrada', " \
+                "   principal = FALSE WHERE id = %s "\
+                "   LIMIT 1", (id,))
+            
+            cursor.execute('COMMIT')
+            
+            logger.info(f'Conta bancária id={id} encerrada com sucesso.')
+            return '', 204
+        
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao encerrar conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao encerrar conta bancária!'}), 500
+
+
+register_erro_handlers(app3)
+
+
+app4 = Flask('API4')
+
+
+            
 app5 = Flask('API5')
 
 
