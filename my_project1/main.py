@@ -300,15 +300,27 @@ with conexao() as cursor:
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_passageiro INT UNSIGNED NOT NULL,
             txid VARCHAR(64) NOT NULL,
+            idempotency_key VARCHAR(64) NOT NULL UNIQUE,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             status ENUM('pendente', 'confirmado', 'cancelado')
                 NOT NULL DEFAULT 'pendente',
+            liquidado_em DATETIME NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_pix_passageiro
                 FOREIGN KEY (id_passageiro)
                 REFERENCES passageiros(id)
                 ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            CONSTRAINT chk_pix_status_liquidado
+                CHECK(
+                   (status = 'confirmado' AND liquidado_em IS NOT NULL)
+                   OR status <> 'confirmado'),
+            
+            CONSTRAINT chk_pix_criado_liquidado
+                CHECK(liquidado_em IS NULL OR liquidado_em >= criado_em),
             
             UNIQUE KEY uk_pix_txid (txid)  
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -338,15 +350,24 @@ with conexao() as cursor:
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_passageiro INT UNSIGNED NOT NULL,
             autorizacao VARCHAR(64) NOT NULL,
+            idempotency_key VARCHAR(64) NOT NULL UNIQUE,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             status ENUM('pendente', 'aprovado', 'negado', 'estornado')
                 NOT NULL DEFAULT 'pendente',
+            liquidado_em DATETIME NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_debito_passageiro
                 FOREIGN KEY (id_passageiro)
                 REFERENCES passageiros(id)
                 ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            CONSTRAINT chk_debito_status_liquidado
+                CHECK((
+                   status = 'aprovado' AND liquidado_em IS NOT NULL)
+                   OR status <> 'aprovado'),
             
             UNIQUE KEY uk_debito_autorizacao (autorizacao)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -376,12 +397,13 @@ with conexao() as cursor:
             ' ON pagamentos_debito(id_passageiro, status)')
         
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pagamentos_credito (
+        CREATE TABLE IF NOT EXISTS credito_passageiro (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_passageiro INT UNSIGNED NOT NULL,
             limite_total DECIMAL(14, 2) NOT NULL CHECK(limite_total > 0),
             limite_utilizado DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
             status ENUM('ativo', 'bloqueado') NOT NULL DEFAULT 'ativo',
+            idempotency_key VARCHAR(64) NOT NULL UNIQUE,
                    
             CONSTRAINT fk_credito_passageiro
                 FOREIGN KEY (id_passageiro)
@@ -396,22 +418,22 @@ with conexao() as cursor:
     ''')
 
     cursor.execute(
-        "SHOW INDEX FROM pagamentos_credito WHERE Key_name = 'idx_credito_passa'")
+        "SHOW INDEX FROM credito_passageiro WHERE Key_name = 'idx_credito_passa'")
     if not cursor.fetchone():
         cursor.execute(
-            'CREATE INDEX idx_credito_passa ON pagamentos_credito(id_passageiro)')
+            'CREATE INDEX idx_credito_passa ON credito_passageiro(id_passageiro)')
 
     cursor.execute(
-        "SHOW INDEX FROM pagamentos_credito WHERE Key_name = 'idx_credito_status'")
+        "SHOW INDEX FROM credito_passageiro WHERE Key_name = 'idx_credito_status'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_credito_status ON pagamentos_credito(status)')
+        cursor.execute('CREATE INDEX idx_credito_status ON credito_passageiro(status)')
 
     cursor.execute(
-        "SHOW INDEX FROM pagamentos_credito WHERE Key_name = 'idx_credito_passa_status'")
+        "SHOW INDEX FROM credito_passageiro WHERE Key_name = 'idx_credito_passa_status'")
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_credito_passa_status ON' \
-            ' pagamentos_credito(id_passageiro, status)')
+            ' credito_passageiro(id_passageiro, status)')
 
 
     cursor.execute('''
@@ -422,12 +444,20 @@ with conexao() as cursor:
             valor_total DECIMAL(14, 2) NOT NULL CHECK(valor_total > 0),
             status ENUM('aberta', 'paga', 'fechada', 'atrasada', 'cancelada')
                     NOT NULL DEFAULT 'aberta',
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            paga_em DATETIME NULL,
+            criada_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizada_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_fatura_passageiro
                 FOREIGN KEY (id_passageiro)
                 REFERENCES passageiros(id)
                 ON DELETE RESTRICT UPDATE CASCADE,
+                   
+            CONSTRAINT chk_fatura_status_paga
+                CHECK(
+                   (status = 'paga' AND paga_em IS NOT NULL)
+                   OR status <> 'paga'),
             
             UNIQUE KEY uk_fatura_passa_vencimento (id_passageiro, vencimento)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -444,7 +474,7 @@ with conexao() as cursor:
 
     cursor.execute("SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_data'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_fatura_data ON faturas_credito(criado_em)')
+        cursor.execute('CREATE INDEX idx_fatura_data ON faturas_credito(criada_em)')
 
     cursor.execute(
         "SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_passa_status'")
@@ -459,13 +489,20 @@ with conexao() as cursor:
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_fatura BIGINT UNSIGNED NOT NULL,
             parcela INT NOT NULL CHECK(parcela > 0),
+            vencimento DATE NULL,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             status ENUM('pendente', 'paga', 'cancelada')
                 NOT NULL DEFAULT 'pendente',
+            paga_em DATETIME NULL,
             
             CONSTRAINT fk_parcela_fatura
                 FOREIGN KEY (id_fatura)
                 REFERENCES faturas_credito(id),
+                   
+            CONSTRAINT chk_parcela_status_paga
+                CHECK(
+                   (status = 'paga' AND paga_em IS NOT NULL)
+                   OR status <> 'paga'),
             
             UNIQUE KEY uk_fatura_parcela (id_fatura, parcela)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -488,12 +525,92 @@ with conexao() as cursor:
             'CREATE INDEX idx_parcela_fatura_status' \
             ' ON parcelas_credito(id_fatura, status)')
         
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pagamentos_credito_transacoes (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            id_fatura BIGINT UNSIGNED NOT NULL,
+            valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            parcelas TINYINT UNSIGNED NOT NULL CHECK(parcelas > 0),
+            status ENUM('pendente', 'paga', 'cancelada')
+                    NOT NULL DEFAULT 'pendente',
+            autorizado_em DATETIME NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
+            
+            CONSTRAINT fk_transacoes_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            CONSTRAINT fk_transacoes_fatura
+                FOREIGN KEY (id_fatura)
+                REFERENCES faturas_credito(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+            
+            CONSTRAINT chk_transacoes_status_autorizado
+                CHECK(
+                   (status = 'paga' AND autorizado_em IS NOT NULL)
+                   OR status <> 'paga')
+            ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+        ''')
+    
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito_transacoes" \
+        " WHERE Key_name = 'idx_transacao_passa'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_transacao_passa ON' \
+            ' pagamentos_credito_transacoes (id_passageiro)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito_transacoes" \
+        " WHERE Key_name = 'idx_transacao_fatura'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_transacao_fatura' \
+            ' ON pagamentos_credito_transacoes(id_fatura)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito_transacoes" \
+        " WHERE Key_name = 'idx_transacao_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_transacao_status' \
+            ' ON pagamentos_credito_transacoes(status)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito_transacoes" \
+        " WHERE Key_name = 'idx_transacao_data'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_transacao_data' \
+            ' ON pagamentos_credito_transacoes(criado_em)')
+        
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito_transacoes" \
+        " WHERE Key_name = 'idx_transacao_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_transacao_passa_status' \
+            ' ON pagamentos_credito_transacoes(id_passageiro, status)')
+    
+    cursor.execute(
+        "SHOW INDEX FROM pagamentos_credito_transacoes" \
+        " WHERE Key_name = 'idx_transacao_fatura_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_transacao_fatura_status' \
+            ' ON pagamentos_credito_transacoes(id_fatura, status)')
+        
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagamentos_boleto (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_passageiro INT UNSIGNED NOT NULL,
             codigo_barras VARCHAR(100) NOT NULL,
+            idempotency_key VARCHAR(64) NOT NULL UNIQUE,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             vencimento DATE NOT NULL,
             status ENUM(
@@ -502,12 +619,25 @@ with conexao() as cursor:
                    'vencido',
                    'cancelado'
                    ) NOT NULL,
+            pago_em DATETIME NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_boleto_passageiro
                 FOREIGN KEY (id_passageiro)
                 REFERENCES passageiros(id)
                 ON DELETE RESTRICT UPDATE CASCADE,
+            
+            CONSTRAINT chk_boleto_status_pago
+                CHECK(
+                   (status = 'pago' AND pago_em IS NOT NULL)
+                   OR status <> 'pago'),
+            
+            CONSTRAINT chk_pago_data
+                CHECK(
+                   (pago_em IS NULL OR pago_em >= criado_em)
+                   ),
             
             UNIQUE KEY uk_boleto_codigo (codigo_barras)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -544,21 +674,20 @@ with conexao() as cursor:
                    ) NOT NULL,
             origem ENUM(
                    'pix',
-                   'cartao_debito',
-                   'cartao_credito',
+                   'credito',
+                   'debito',
                    'boleto',
-                   'transferencia',
                    'manual',
                    'sistema'
                    ) NOT NULL,
-            status ENUM('pendente', 'confirmada', 'cancelado')
+            status ENUM('pendente', 'confirmado', 'cancelado')
                    NOT NULL DEFAULT 'pendente',
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             impacto_saldo ENUM('disponivel', 'bloqueado') NOT NULL,
             descricao VARCHAR(255) NOT NULL,
             referencia_externa VARCHAR(100) NULL,
             liquidado_em DATETIME NULL,
-            data_vencimento DATETIME NULL,
+            data_vencimento DATE NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
@@ -569,8 +698,8 @@ with conexao() as cursor:
                 ON DELETE RESTRICT ON UPDATE CASCADE,
             
             CONSTRAINT chk_mov_status_liquidacao
-                CHECK((status = 'confirmada' AND liquidado_em IS NOT NULL)
-                OR status <> 'confirmada'),
+                CHECK((status = 'confirmado' AND liquidado_em IS NOT NULL)
+                OR status <> 'confirmado'),
             
             CONSTRAINT chk_mov_impacto
                 CHECK(
@@ -633,7 +762,31 @@ with conexao() as cursor:
         cursor.execute(
             'CREATE INDEX idx_mov_conta_status_data' \
             ' ON movimentacoes_financeiras(id_conta_plataforma, status, criado_em)')
+        
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS movimentacoes_referencias (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_movimentacao BIGINT UNSIGNED NOT NULL,
+            tipo_origem ENUM('pix', 'credito', 'debito', 'boleto'),
+            id_origem BIGINT UNSIGNED NOT NULL,
+            
+            CONSTRAINT fk_referencias_mov
+                FOREIGN KEY (id_movimentacao)
+                REFERENCES movimentacoes_financeiras(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+                   
+            UNIQUE KEY uk_mov (id_movimentacao),
+            UNIQUE KEY uk_tipo_origem (tipo_origem, id_origem)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM movimentacoes_referencias WHERE Key_name = 'idx_refe_mov'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_refe_mov ON movimentacoes_referencias(id_movimentacao)')
+        
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS motoristas (
