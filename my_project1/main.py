@@ -19,6 +19,7 @@ from app.brute_force import (ip_bloqueado,
                                registrar_falha,
                                  limpar_falhas,
                                   limiter)
+from app.gerador_qr_code import gerar_qr_pix
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
 import threading
@@ -26,6 +27,8 @@ import logging
 import bcrypt
 import re
 import mysql.connector
+import secrets
+import uuid
 
 
 configurar_logging()
@@ -324,8 +327,8 @@ with conexao() as cursor:
         CREATE TABLE IF NOT EXISTS pagamentos_pix (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_passageiro INT UNSIGNED NOT NULL,
-            txid VARCHAR(64) NOT NULL,
-            idempotency_key VARCHAR(64) NOT NULL UNIQUE,
+            txid VARCHAR(35) NOT NULL,
+            idempotency_key VARCHAR(64) NOT NULL,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             qr_code_payload TEXT NOT NULL,
             status ENUM('pendente', 'confirmado', 'cancelado')
@@ -348,7 +351,8 @@ with conexao() as cursor:
             CONSTRAINT chk_pix_criado_liquidado
                 CHECK(liquidado_em IS NULL OR liquidado_em >= criado_em),
             
-            UNIQUE KEY uk_pix_txid (txid)  
+            UNIQUE KEY uk_pix_txid_passageiro (txid, id_passageiro),
+            UNIQUE KEY uk_pix_idempotency_key (idempotency_key)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
     ''')
 
@@ -369,7 +373,73 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_pix_passa_status ON pagamentos_pix(id_passageiro, status)')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chaves_pix (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            id_passageiro INT UNSIGNED NOT NULL,
+            tipo ENUM('cpf', 'cnpj', 'email', 'telefone', 'aleatoria') NOT NULL,
+            chave VARCHAR(140) NOT NULL,
+            banco_codigo CHAR(3) NOT NULL,
+            status ENUM('ativa', 'removida') NOT NULL DEFAULT 'ativa',
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                   
+            CONSTRAINT fk_chave_passageiro
+                FOREIGN KEY (id_passageiro)
+                REFERENCES passageiros(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE,
+                   
+            UNIQUE KEY uk_chave_pix (chave),
+            UNIQUE KEY uk_chave_passageiro_tipo_status (id_passageiro, tipo, status)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;''')
     
+    cursor.execute("SHOW INDEX FROM chaves_pix WHERE Key_name = 'idx_chave_passa'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_chave_passa ON chaves_pix(id_passageiro)')
+
+    cursor.execute("SHOW INDEX FROM chaves_pix WHERE Key_name = 'idx_chave_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_chave_status ON chaves_pix(status)')
+
+    cursor.execute("SHOW INDEX FROM chaves_pix WHERE Key_name = 'idx_chave_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_chave_data ON chaves_pix(criado_em)')
+
+    cursor.execute(
+        "SHOW INDEX FROM chaves_pix WHERE Key_name = 'idx_chave_passa_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_chave_passa_status ON chaves_pix(id_passageiro, status)')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS configuracoes_pix (
+            id TINYINT PRIMARY KEY DEFAULT 1 CHECK(id = 1),
+            chave_pix VARCHAR(140) NOT NULL,
+            tipo ENUM('cpf', 'cnpj', 'email', 'telefone', 'aleatoria') NOT NULL,
+            banco_codigo CHAR(3) NOT NULL,
+            nome_recebedor VARCHAR(25) NOT NULL,
+            cidade VARCHAR(15) NOT NULL,
+            status ENUM('ativa', 'removida') NOT NULL DEFAULT 'ativa',
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+    ''')
+
+    cursor.execute(
+        "SHOW INDEX FROM configuracoes_pix WHERE Key_name = 'idx_config_id'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_config_id ON configuracoes_pix(id)')
+
+    cursor.execute(
+        "SHOW INDEX FROM configuracoes_pix WHERE Key_name = 'idx_config_status'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_config_status ON configuracoes_pix(status)')
+
+    cursor.execute(
+        "SHOW INDEX FROM configuracoes_pix WHERE Key_name = 'idx_config_id_status'")
+    if not cursor.fetchone():
+        cursor.execute(
+            'CREATE INDEX idx_config_id_status ON configuracoes_pix(id, status)')
+
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagamentos_debito (
@@ -2517,7 +2587,9 @@ app5 = Flask('API5')
 
 
 @app5.route('/admin/pagamentos/pix', methods=['POST'])
-def criar_pagamento_pix():
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def criar_pagamento_pix_admin():
     try:
         logger.info('Criando pagamento via pix...')
 
@@ -2525,19 +2597,12 @@ def criar_pagamento_pix():
 
         NORMALIZACOES = {
             'id_passageiro': lambda v: int(v),
-            'txid': lambda v: str(v).strip(),
-            'valor': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
-            'idempotency_key': lambda v: str(v).strip().lower(),
-            'qr_code': lambda v: str(v).strip()
+            'valor': lambda v: Decimal(str(v)).quantize(Decimal('0.01'))
         }
 
         REGRAS = {
             'id_passageiro': lambda v: v > 0,
-            'txid': lambda v: re.fullmatch(r'^[A-Za-z0-9]{26,35}$', v),
-            'valor': lambda v: v > 0,
-            'idempotency_key': lambda v: re.fullmatch(
-            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$', v),
-            'qr_code': lambda v: re.fullmatch(r'^000201[0-9A-Za-z]+$', v)
+            'valor': lambda v: v > 0
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -2560,9 +2625,64 @@ def criar_pagamento_pix():
                 logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
         
-        liquidado_em = datetime.now()
-        
+        txid = secrets.token_urlsafe(16)[:35]
+        idempotency_key = str(uuid.uuid4())
+        liquidado_em = None
 
+        with conexao() as cursor:
+            cursor.execute(
+                "SELECT nome_recebedor, chave_pix, cidade, status" \
+                "   FROM configuracoes_pix WHERE id = 1")
+            
+            config_pix = cursor.fetchone()
+
+            if not config_pix:
+                logger.warning(f'Chave pix id=1 não encontrada.')
+                return jsonify({'erro': 'Chave pix não encontrada!'}), 404
+            
+            nome_recebedor, chave_pix, cidade, status = config_pix
+
+            if status == 'removida':
+                logger.warning(f'Chave pix id=1 foi removida.')
+                return jsonify({'erro': 'Chave pix foi removida!'}), 409
+
+            qr_code_payload = gerar_qr_pix(
+            chave_pix=chave_pix,
+            valor=dados['valor'],
+            txid=txid,
+            nome=nome_recebedor,
+            cidade=cidade
+        )
+
+            cursor.execute(
+                'SELECT id FROM passageiros WHERE id = %s',
+                  (dados['id_passageiro'],))
+            
+            if not cursor.fetchone():
+                logger.warning(f"Passageiro id={dados['id_passageiro']} não encontrado.")
+                return jsonify({'erro': 'Passageiro não encontrado!'}), 404
+            
+            cursor.execute('''
+                INSERT INTO pagamentos_pix
+                    (id_passageiro, txid, idempotency_key,
+                    valor, qr_code_payload, status, liquidado_em)
+                    VALUES (%s, %s, %s, %s, %s, 'pendente', %s)''', 
+                    (dados['id_passageiro'], txid, 
+                    idempotency_key, dados['valor'], 
+                    qr_code_payload, liquidado_em))
+            
+            novo_id = cursor.lastrowid
+
+            logger.info(f'Pagamento id={novo_id} via pix gerado com sucesso.')
+            return jsonify({
+                'mensagem': 'Pagamento via pix gerado!',
+                'id': novo_id,
+                'qr_code_url': f'/pagamentos/pix/{novo_id}/qrcode'}), 201
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao criar pagamento via pix: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao criar pagamento via pix!'}), 500
+            
 
 app10 = Flask('API10')
 

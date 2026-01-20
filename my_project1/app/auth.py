@@ -17,11 +17,9 @@ ACCESS_EXPIRES_MIN = 30
 REFRESH_EXPIRES_DAYS = 7
 
 
-br = timezone(timedelta(hours=-3))
-
 
 def gerar_tokens(id_usuario: str) -> str:
-    agora = datetime.now(br)
+    agora = datetime.now(timezone.utc)
     try:
         access_payload = {
             'sub': str(id_usuario),
