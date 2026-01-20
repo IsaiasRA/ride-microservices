@@ -20,6 +20,7 @@ from app.brute_force import (ip_bloqueado,
                                  limpar_falhas,
                                   limiter)
 from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone, timedelta
 import threading
 import logging
 import bcrypt
@@ -326,6 +327,7 @@ with conexao() as cursor:
             txid VARCHAR(64) NOT NULL,
             idempotency_key VARCHAR(64) NOT NULL UNIQUE,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
+            qr_code_payload TEXT NOT NULL,
             status ENUM('pendente', 'confirmado', 'cancelado')
                 NOT NULL DEFAULT 'pendente',
             liquidado_em DATETIME NULL,
@@ -2523,15 +2525,19 @@ def criar_pagamento_pix():
 
         NORMALIZACOES = {
             'id_passageiro': lambda v: int(v),
+            'txid': lambda v: str(v).strip(),
             'valor': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
-            'idempotency_key': lambda v: str(v).strip().lower()
+            'idempotency_key': lambda v: str(v).strip().lower(),
+            'qr_code': lambda v: str(v).strip()
         }
 
         REGRAS = {
             'id_passageiro': lambda v: v > 0,
+            'txid': lambda v: re.fullmatch(r'^[A-Za-z0-9]{26,35}$', v),
             'valor': lambda v: v > 0,
             'idempotency_key': lambda v: re.fullmatch(
-            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$', v)
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$', v),
+            'qr_code': lambda v: re.fullmatch(r'^000201[0-9A-Za-z]+$', v)
         }
 
         faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
@@ -2540,6 +2546,21 @@ def criar_pagamento_pix():
             logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
             return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
 
+        for campo, regra in REGRAS.items():
+            try:
+                valor = dados[campo]
+                valor = NORMALIZACOES[campo](valor)
+
+                if not regra(valor):
+                    raise ValueError
+                
+                dados[campo] = valor
+            
+            except Exception:
+                logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
+                return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
+        
+        liquidado_em = datetime.now()
         
 
 
