@@ -88,7 +88,7 @@ with conexao() as cursor:
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 usuario VARCHAR(100) NOT NULL UNIQUE,
                 senha_hash VARCHAR(255) NOT NULL,
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
     
@@ -108,7 +108,7 @@ with conexao() as cursor:
                 hash_token CHAR(64) NOT NULL,
                 expira_em DATETIME NOT NULL,
                 revogado BOOLEAN DEFAULT FALSE,
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT fk_refresh_usuario
                    FOREIGN KEY (id_usuario)
                    REFERENCES usuarios(id)
@@ -147,8 +147,8 @@ with conexao() as cursor:
                 cpf CHAR(11) NOT NULL CHECK(LENGTH(TRIM(cpf)) = 11),
                 telefone VARCHAR(20) NOT NULL CHECK(LENGTH(TRIM(telefone)) >= 8),
                 status ENUM('ativo', 'bloqueado') NOT NULL DEFAULT 'ativo',
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP,
                 
                 UNIQUE KEY uk_passa_cpf (cpf),
@@ -195,8 +195,8 @@ with conexao() as cursor:
                             ELSE NULL
                         END
                 ) STORED,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             UNIQUE KEY uk_conta (banco_codigo, agencia, conta,
@@ -258,8 +258,8 @@ with conexao() as cursor:
             saldo_bloqueado DECIMAL(14, 2) NOT NULL
                     DEFAULT 0.00 CHECK(saldo_bloqueado >= 0),
             status ENUM('ativa', 'bloqueada', 'encerrada') NOT NULL DEFAULT 'ativa',
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_plataforma_passageiro
@@ -329,8 +329,8 @@ with conexao() as cursor:
             status ENUM('pendente', 'confirmado', 'cancelado')
                 NOT NULL DEFAULT 'pendente',
             liquidado_em DATETIME NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_pix_passageiro
@@ -379,8 +379,8 @@ with conexao() as cursor:
             status ENUM('pendente', 'aprovado', 'negado', 'estornado')
                 NOT NULL DEFAULT 'pendente',
             liquidado_em DATETIME NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_debito_passageiro
@@ -469,8 +469,8 @@ with conexao() as cursor:
             status ENUM('aberta', 'paga', 'fechada', 'atrasada', 'cancelada')
                     NOT NULL DEFAULT 'aberta',
             pago_em DATETIME NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_fatura_passageiro
@@ -560,8 +560,8 @@ with conexao() as cursor:
             status ENUM('pendente', 'pago', 'cancelado')
                     NOT NULL DEFAULT 'pendente',
             autorizado_em DATETIME NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_transacoes_passageiro
@@ -645,8 +645,8 @@ with conexao() as cursor:
                    'cancelado'
                    ) NOT NULL,
             pago_em DATETIME NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_boleto_passageiro
@@ -713,8 +713,8 @@ with conexao() as cursor:
             referencia_externa VARCHAR(100) NULL,
             liquidado_em DATETIME NULL,
             data_vencimento DATE NULL,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_mov_conta
@@ -825,8 +825,8 @@ with conexao() as cursor:
                 ano_carro INT UNSIGNED NOT NULL CHECK(ano_carro >= 1980),
                 status ENUM('ativo', 'bloqueado')NOT NULL DEFAULT 'ativo',
                 quantia DECIMAL(10, 2) UNSIGNED DEFAULT 0 CHECK(quantia >= 0),
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP,
 
                 UNIQUE KEY uk_moto_cnh (cnh),
@@ -865,8 +865,8 @@ with conexao() as cursor:
                 total DECIMAL(10, 2) NOT NULL CHECK(total > 0),
                 status ENUM('criada', 'em_andamento',
                    'finalizada', 'cancelada') NOT NULL DEFAULT 'criada',
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP,
                    
                 CONSTRAINT fk_viagens_passageiro
@@ -912,7 +912,7 @@ with conexao() as cursor:
             bairro VARCHAR(100) NOT NULL,
             cidade VARCHAR(100) NOT NULL,
             estado CHAR(2) NOT NULL CHECK(LENGTH(TRIM(estado)) = 2),
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_endereco_viagem
                 FOREIGN KEY (id_viagem)
@@ -941,8 +941,8 @@ with conexao() as cursor:
                 valor_total DECIMAL(10, 2) NOT NULL CHECK(valor_total > 0),
                 status ENUM('pendente', 'pago', 'cancelado',
                     'estornado') NOT NULL DEFAULT 'pendente',
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP,
 
                 CONSTRAINT fk_registro_viagem
@@ -1807,451 +1807,7 @@ register_erro_handlers(app2)
 app3 = Flask('API3')
 
 
-@app3.route('/passageiros/<int:id_passageiro>/contas-bancarias', methods=['GET'])
-@limiter.limit('100 per hour')
-@rota_protegida
-def listar_contas_bancarias_passageiro(id_passageiro):
-    try:
-        logger.info(f'Listando contas bancárias de passageiro com id={id_passageiro}...')
-
-        with conexao() as cursor:
-            cursor.execute(
-                "SELECT id, id_passageiro, banco_codigo, banco_nome, "\
-                       "agencia, agencia_digito, conta, conta_digito, "\
-                       "tipo_conta, titular_nome, status, principal, "\
-                       "criado_em, atualizado_em "\
-                "FROM contas_bancarias WHERE id_passageiro = %s AND status = 'ativa' "\
-                "ORDER BY principal DESC, criado_em DESC",
-                (id_passageiro,))
-            
-            dados = [{
-                'id': c[0],
-                'id_passageiro': c[1],
-                'banco_codigo': c[2],
-                'banco_nome': c[3],
-                'agencia': c[4],
-                'agencia_digito': c[5],
-                'conta': c[6],
-                'conta_digito': c[7],
-                'tipo_conta': c[8],
-                'titular_nome': c[9],
-                'status': c[10],
-                'principal': c[11],
-                'criado_em': c[12],
-                'atualizado_em': c[13]
-            } for c in cursor.fetchall()]
-
-            if not dados:
-                logger.info(f'Nenhum conta bancária do passageiro encontrada')
-                return jsonify([]), 200
-            
-            logger.info('Listagem de contas de bancárias bem-sucedida.')
-            return jsonify(dados), 200
-    
-    except Exception as erro:
-        logger.error(
-            f'Erro inesperado ao listar contas bancárias de passageiro: {str(erro)}')
-        return jsonify(
-            {'erro': 'Erro inesperado ao listar contas bancárias de passageiro'}), 500
-    
-
-@app3.route('/admin/contas-bancarias', methods=['GET'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def listar_contas_bancarias_admin():
-    try:
-        logger.info('Listando conta bancária...')
-
-        with conexao() as cursor:
-            cursor.execute('''
-                SELECT id, id_passageiro, banco_codigo, banco_nome,
-                    agencia, agencia_digito, conta, conta_digito,
-                    tipo_conta, titular_nome, status, principal,
-                    criado_em, atualizado_em
-                FROM contas_bancarias ORDER BY criado_em DESC''')
-            
-            dados = [{
-                'id': c[0],
-                'id_passageiro': c[1],
-                'banco_codigo': c[2],
-                'banco_nome': c[3],
-                'agencia': c[4],
-                'agencia_digito': c[5],
-                'conta': c[6],
-                'conta_digito': c[7],
-                'tipo_conta': c[8],
-                'titular_nome': c[9],
-                'status': c[10],
-                'principal': c[11],
-                'criado_em': c[12],
-                'atualizado_em': c[13]
-            } for c in cursor.fetchall()]
-
-            if not dados:
-                logger.info('Nenhum conta bancária encontrado.')
-                return jsonify([]), 200
-            
-            logger.info('Listagem de contas bancárias bem-sucedida.')
-            return jsonify(dados), 200
-    
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao listar contas bancárias: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao listar contas bancárias!'}), 500
-
-
-@app3.route('/admin/contas-bancarias/<int:id>', methods=['GET'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def buscar_conta_bancaria_admin(id):
-    try:
-        logger.info(f'Buscando conta bancária com id={id}...')
-
-        with conexao() as cursor:
-            cursor.execute('''
-                SELECT id, id_passageiro, banco_codigo, banco_nome, 
-                       agencia, agencia_digito, conta, conta_digito,
-                       tipo_conta, titular_nome, titular_documento,
-                       status, principal, criado_em, atualizado_em
-                FROM contas_bancarias WHERE id = %s''', (id,))
-            
-            dado = cursor.fetchone()
-
-            if not dado:
-                logger.warning(f'Conta bancária id={id} não encontrada.')
-                return jsonify({'erro': 'Conta bancária não encontrada!'}), 404
-            
-            logger.info('Busca de conta bancária bem-sucedida.')
-            return jsonify({
-                'id': dado[0],
-                'id_passageiro': dado[1],
-                'banco_codigo': dado[2],
-                'banco_nome': dado[3],
-                'agencia': dado[4],
-                'agencia_digito': dado[5],
-                'conta': dado[6],
-                'conta_digito': dado[7],
-                'tipo_conta': dado[8],
-                'titular_nome': dado[9],
-                'titular_documento': dado[10],
-                'status': dado[11],
-                'principal': dado[12],
-                'criado_em': dado[13],
-                'atualizado_em': dado[14]
-            }), 200
-        
-    
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao buscar conta bancária: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao buscar conta bancária!'}), 500
-
-
-@app3.route('/admin/contas-bancarias', methods=['POST'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def criar_conta_bancaria():
-    try:
-        logger.info('Criando conta bancária...')
-
-        dados = validar_json()
-
-        NORMALIZACOES = {
-            'id_passageiro': lambda v: int(v),
-            'banco_codigo': lambda v: f'{int(v):03d}',
-            'banco_nome': lambda v: formatar_nome(v),
-            'agencia': lambda v: str(v).strip(),
-            'agencia_digito': lambda v: str(v).strip().upper() if v else None,
-            'conta': lambda v: str(v).strip(),
-            'conta_digito': lambda v: str(v).strip().upper() if v else None,
-            'tipo_conta': lambda v: str(v).strip().lower(),
-            'titular_nome': lambda v: formatar_nome(v),
-            'titular_documento': lambda v: re.sub(r'\D', '', str(v)),
-            'principal': lambda v: int(v)
-        }
-
-        REGRAS = {
-            'id_passageiro': lambda v: v > 0,
-            'banco_codigo': lambda v: re.fullmatch(r'\d{3}', v),
-            'banco_nome': lambda v: re.fullmatch(
-                r'[A-Za-zÀ-ÿ0-9\s\.\-]{3,}', v),
-            'agencia': lambda v: re.fullmatch(r'\d{1,10}', v),
-            'agencia_digito': lambda v: v is None or re.fullmatch(r'[0-9A-Za-z]', v),
-            'conta': lambda v: re.fullmatch(r'\d{1,20}', v),
-            'conta_digito': lambda v: v is None or re.fullmatch(r'[0-9A-Za-z]', v),
-            'tipo_conta': lambda v: v in (
-                'corrente', 'poupanca', 'salario', 'pagamento'),
-            'titular_nome': lambda v: re.fullmatch(
-                r'[A-Za-zÀ-ÿ\s\.\-]{3,}', v),
-            'titular_documento': lambda v: re.fullmatch(r'\d{11}|\d{14}', v),
-            'principal': lambda v: v in (0, 1)
-        }
-
-        faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
-
-        if faltando:
-            logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
-            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
-        
-        for campo, regra in REGRAS.items():
-            try:
-                valor = dados[campo]
-                valor = NORMALIZACOES[campo](valor)
-
-                if not regra(valor):
-                    raise ValueError
-
-                dados[campo] = valor
-                 
-            except Exception:
-                logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
-                return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
-            
-        with conexao() as cursor:
-            try:
-                cursor.execute('START TRANSACTION')
-
-                cursor.execute(
-                    "SELECT id FROM passageiros WHERE id = %s"\
-                    "   AND status = 'ativo'",
-                    (dados['id_passageiro']))
-                
-                if not cursor.fetchone():
-                    logger.warning(
-                        f"Passageiro id={dados['id_passageiro']} não encontrado ou bloqueado.")
-                    raise Conflict('Passageiro não encontrado ou bloqueado!')
-                
-                if dados['principal'] == 1:
-                    cursor.execute('''
-                        SELECT id FROM contas_bancarias WHERE id_passageiro = %s
-                            AND principal = 1 FOR UPDATE''',
-                            (dados['id_passageiro']))
-                    
-                    if cursor.fetchone():
-                        logger.warning('Já existe uma conta principal.')
-                        raise Conflict('Já existe uma conta principal!')
-
-                cursor.execute('''
-                    INSERT INTO contas_bancarias
-                        (id_passageiro, banco_codigo, banco_nome, agencia,
-                        agencia_digito, conta, conta_digito, tipo_conta,
-                        titular_nome, titular_documento, principal
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ''', (dados['id_passageiro'], dados['banco_codigo'], dados['banco_nome'],
-                    dados['agencia'], dados['agencia_digito'], dados['conta'],
-                    dados['conta_digito'], dados['tipo_conta'], dados['titular_nome'],
-                    dados['titular_documento'], dados['principal']))
-                
-                novo_id = cursor.lastrowid
-
-                cursor.execute('COMMIT')
-
-                logger.info(f'Conta id={novo_id} criada com sucesso.')
-                return jsonify({'mensagem': 'Conta criado',
-                                'id': novo_id}), 201
-            except Exception:
-                cursor.execute('ROLLBACK')
-                raise
-        
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao criar conta bancária: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao criar conta bancária!'}), 500
-    
-
-@app3.route('/admin/contas-bancarias/<int:id>/principal', methods=['PATCH'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def tornar_conta_bancaria_principal(id):
-    try:
-        logger.info(f'Tornar conta bancária principal com id={id}...')
-
-        with conexao() as cursor:
-            cursor.execute('START TRANSACTION')
-
-            cursor.execute(
-                "SELECT id_passageiro, principal FROM contas_bancarias "\
-                    "WHERE id = %s AND status = 'ativa' FOR UPDATE",
-                    (id,))
-            
-            conta = cursor.fetchone()
-
-            if not conta:
-                cursor.execute('ROLLBACK')
-                logger.warning(f'Conta bancária id={id} não encontrado ou inativa.')
-                return jsonify(
-                    {'erro': 'Conta bancária não encontrada ou inativa!'}), 404
-            
-            id_passageiro, ja_principal = conta
-
-            if ja_principal:
-                cursor.execute('ROLLBACK')
-                logger.warning(f'Conta bancária id={id} já é principal.')
-                return jsonify({'erro': 'Conta bancária já é principal!'}), 409
-            
-            cursor.execute('''
-                UPDATE contas_bancarias SET principal = FALSE
-                    WHERE id_passageiro = %s AND principal = TRUE''',
-                    (id_passageiro,))
-
-            cursor.execute('''
-                UPDATE contas_bancarias SET principal = TRUE
-                    WHERE id = %s''', (id,))
-            
-            cursor.execute('COMMIT')
-
-            logger.info(f'Conta bancária id={id} definida como principal com sucesso.')
-            return '', 204
-    
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao tornar conta bancária principal: {str(erro)}')
-        return jsonify(
-            {'erro': 'Erro inesperado ao tornar conta bancária principal!'}), 500
-    
-
-@app3.route('/admin/contas-bancarias/<int:id>/bloquear', methods=['PATCH'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def bloquear_conta_bancaria(id):
-    try:
-        logger.info(f'Bloqueando conta bancária com id={id}...')
-
-        with conexao() as cursor:
-            cursor.execute('''
-                SELECT id_passageiro, principal FROM contas_bancarias 
-                   WHERE id = %s AND status = 'ativa' FOR UPDATE''',
-                   (id,))
-            
-            conta = cursor.fetchone()
-            
-            if not conta:
-                logger.warning(
-                    f'Conta bancária id={id} não encontrada ou inativa.')
-                return jsonify({'erro': 'Conta bancária não encontrada ou inativa!'}), 404
-            
-            id_passageiro, principal = conta
-
-            if principal:
-                cursor.execute('''
-                    SELECT id FROM contas_bancarias WHERE id_passageiro = %s
-                        AND status = 'ativa' AND id != %s LIMIT 1''',
-                        (id_passageiro, id))
-                
-                if not cursor.fetchone():
-                    logger.warning(f'Conta principal id={id} única.')
-                    return jsonify(
-                        {'erro': 'Não é possivel bloquear a única'
-                        ' conta principal ativa!'}), 409
-                
-            cursor.execute(
-                "UPDATE contas_bancarias SET status = 'bloqueada', " \
-                "   principal = FALSE WHERE id = %s", (id,))
-            
-            logger.info(f'Conta bancária id={id} bloqueada com sucesso.')
-            return '', 204
-    
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao bloquear conta bancária: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao bloquear conta bancária!'}), 500
-    
-
-@app3.route('/admin/contas-bancarias/<int:id>/reativar', methods=['PATCH'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def reativar_conta_bancaria(id):
-    try:
-        logger.info(f'Reativando conta bancária com id={id}...')
-
-        with conexao() as cursor:
-            cursor.execute('START TRANSACTION')
-
-            cursor.execute(
-                "SELECT status FROM contas_bancarias" \
-                " WHERE id = %s FOR UPDATE", (id,))
-            
-            conta = cursor.fetchone()
-
-            if not conta:
-                cursor.execute('ROLLBACK')
-                logger.warning(f'Conta bancária id={id} não encontrada.')
-                return jsonify({'erro': 'Conta bancária não encontrada!'}), 404
-            
-            if conta[0] == 'ativa':
-                cursor.execute('ROLLBACK')
-                logger.warning(f'Conta bancária id={id} já está ativa.')
-                return jsonify({'erro': 'Conta bancária já está ativa!'}), 409
-            
-            if conta[0] == 'encerrada':
-                cursor.execute('ROLLBACK')
-                logger.warning(
-                    f'Conta bancária id={id} está encerrada não pode ser reativada.')
-                return jsonify(
-                    {'erro': 'Conta bancária está encerrada não pode ser reativada!'}), 409
-            
-            cursor.execute('''
-                UPDATE contas_bancarias SET status = 'ativa', 
-                    principal = FALSE WHERE id = %s''', (id,))
-            
-            cursor.execute('COMMIT')
-            
-            logger.info(f'Conta bancária id={id} reativada com sucesso.')
-            return '', 204
-    
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao reativar conta bancária: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao reativar conta bancária!'}), 500
-
-
-@app3.route('/admin/contas-bancarias/<int:id>/encerrar', methods=['PATCH'])
-@limiter.limit('100 per hour')
-@rota_protegida(role='admin')
-def encerrar_conta_bancaria(id):
-    try:
-        logger.info(f'Encerrando conta bancária com id={id}...')
-
-        with conexao() as cursor:
-            cursor.execute('START TRANSACTION')
-
-            cursor.execute(
-                "SELECT status FROM contas_bancarias" \
-                "   WHERE id = %s FOR UPDATE", (id,))
-            
-            conta = cursor.fetchone()
-
-            if not conta:
-                cursor.execute('ROLLBACK')
-                logger.warning(f'Conta bancária id={id} não encontrada.')
-                return jsonify({'erro': 'Conta bancária não encontrada!'}
-                               ), 404
-            
-            if conta[0] == 'encerrada':
-                cursor.execute('ROLLBACK')
-                logger.warning(f'Conta bancária id={id} já foi encerrada.')
-                return jsonify({'erro': 'Conta bancária já foi encerrada!'}), 409
-
-            cursor.execute(
-                "UPDATE contas_bancarias SET status = 'encerrada', " \
-                "   principal = FALSE WHERE id = %s "\
-                "   LIMIT 1", (id,))
-            
-            cursor.execute('COMMIT')
-            
-            logger.info(f'Conta bancária id={id} encerrada com sucesso.')
-            return '', 204
-        
-    except Exception as erro:
-        logger.error(f'Erro inesperado ao encerrar conta bancária: {str(erro)}')
-        return jsonify({'erro': 'Erro inesperado ao encerrar conta bancária!'}), 500
-
-
-register_erro_handlers(app3)
-
-
-app4 = Flask('API4')
-
-
-            
-app5 = Flask('API5')
-
-
-@app5.route('/admin/viagens', methods=['GET'])
+@app3.route('/admin/viagens', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def listar_viagens_admin():
@@ -2288,7 +1844,7 @@ def listar_viagens_admin():
         return jsonify({'erro': 'Erro inesperado ao listar viagens!'}), 500
 
 
-@app5.route('/admin/viagens/<int:id>', methods=['GET'])
+@app3.route('/admin/viagens/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def buscar_viagem_admin(id):
@@ -2325,7 +1881,7 @@ def buscar_viagem_admin(id):
         return jsonify({'erro': 'Erro inesperado ao buscar viagem!'}), 500
     
 
-@app5.route('/admin/viagens', methods=['POST'])
+@app3.route('/admin/viagens', methods=['POST'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def criar_viagem_admin():
@@ -2539,7 +2095,7 @@ def criar_viagem_admin():
         return jsonify({'erro': 'Erro inesperado ao criar viagem!'}), 500
 
 
-@app5.route('/admin/viagens/<int:id>/cancelar', methods=['PATCH'])
+@app3.route('/admin/viagens/<int:id>/cancelar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def cancelar_viagem_admin(id):
@@ -2571,7 +2127,7 @@ def cancelar_viagem_admin(id):
         return jsonify({'erro': 'Erro inesperado ao cancelar viagem!'}), 500
 
 
-@app5.route('/admin/viagens/<int:id>/iniciar', methods=['PATCH'])
+@app3.route('/admin/viagens/<int:id>/iniciar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def iniciar_viagem_admin(id):
@@ -2601,7 +2157,7 @@ def iniciar_viagem_admin(id):
         return jsonify({'erro': 'Erro inesperado ao iniciar viagem!'}), 500
     
 
-@app5.route('/admin/viagens/<int:id>/finalizar', methods=['PATCH'])
+@app3.route('/admin/viagens/<int:id>/finalizar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def finalizar_viagens_admin(id):
@@ -2633,13 +2189,13 @@ def finalizar_viagens_admin(id):
         return jsonify({'erro': 'Erro inesperado ao finalizar viagem!'}), 500
 
 
-register_erro_handlers(app5)
+register_erro_handlers(app3)
 
 
-app6 = Flask('API5')
+app4 = Flask('API4')
 
 
-@app6.route('/admin/registros-pagamento', methods=['GET'])
+@app4.route('/admin/registros-pagamento', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def listar_registros_pagamento_admin():
@@ -2679,7 +2235,7 @@ def listar_registros_pagamento_admin():
             {'erro': 'Erro inesperado ao listar registros de pagamentos!'}), 500
 
 
-@app6.route('/admin/registros-pagamento/<int:id>', methods=['GET'])
+@app4.route('/admin/registros-pagamento/<int:id>', methods=['GET'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def buscar_registro_pagamento_admin(id):
@@ -2718,7 +2274,7 @@ def buscar_registro_pagamento_admin(id):
         return jsonify({'erro': 'Erro inesperado ao buscar registro de pagamento!'}), 500
 
 
-@app6.route('/admin/registros-pagamento', methods=['POST'])
+@app4.route('/admin/registros-pagamento', methods=['POST'])
 @limiter.limit('100 per hour')
 @rota_protegida(role='admin')
 def criar_pagamento_admin():
@@ -2870,7 +2426,7 @@ def criar_pagamento_admin():
             {'erro': 'Erro inesperado ao registrar pagamento!'}), 500
 
 
-@app6.route('/registros-pagamento/<int:id>/cancelar', methods=['PATCH'])
+@app4.route('/registros-pagamento/<int:id>/cancelar', methods=['PATCH'])
 @limiter.limit('100 per hour')
 @rota_protegida
 def cancelar_registro_pagamento(id):
@@ -2952,7 +2508,479 @@ def cancelar_registro_pagamento(id):
         return jsonify({'erro': 'Erro inesperado ao atualizar viagem!'}), 500
 
 
-register_erro_handlers(app6)
+register_erro_handlers(app4)
+
+
+app5 = Flask('API5')
+
+
+@app5.route('/admin/pagamentos/pix', methods=['POST'])
+def criar_pagamento_pix():
+    try:
+        logger.info('Criando pagamento via pix...')
+
+        dados = validar_json()
+
+        NORMALIZACOES = {
+            'id_passageiro': lambda v: int(v),
+            'valor': lambda v: Decimal(str(v)).quantize(Decimal('0.01')),
+            'idempotency_key': lambda v: str(v).strip().lower()
+        }
+
+        REGRAS = {
+            'id_passageiro': lambda v: v > 0,
+            'valor': lambda v: v > 0,
+            'idempotency_key': lambda v: re.fullmatch(
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$', v)
+        }
+
+        faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
+
+        if faltando:
+            logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
+            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
+
+        
+
+
+app10 = Flask('API10')
+
+
+@app10.route('/passageiros/<int:id_passageiro>/contas-bancarias', methods=['GET'])
+@limiter.limit('100 per hour')
+@rota_protegida
+def listar_contas_bancarias_passageiro(id_passageiro):
+    try:
+        logger.info(f'Listando contas bancárias de passageiro com id={id_passageiro}...')
+
+        with conexao() as cursor:
+            cursor.execute(
+                "SELECT id, id_passageiro, banco_codigo, banco_nome, "\
+                       "agencia, agencia_digito, conta, conta_digito, "\
+                       "tipo_conta, titular_nome, status, principal, "\
+                       "criado_em, atualizado_em "\
+                "FROM contas_bancarias WHERE id_passageiro = %s AND status = 'ativa' "\
+                "ORDER BY principal DESC, criado_em DESC",
+                (id_passageiro,))
+            
+            dados = [{
+                'id': c[0],
+                'id_passageiro': c[1],
+                'banco_codigo': c[2],
+                'banco_nome': c[3],
+                'agencia': c[4],
+                'agencia_digito': c[5],
+                'conta': c[6],
+                'conta_digito': c[7],
+                'tipo_conta': c[8],
+                'titular_nome': c[9],
+                'status': c[10],
+                'principal': c[11],
+                'criado_em': c[12],
+                'atualizado_em': c[13]
+            } for c in cursor.fetchall()]
+
+            if not dados:
+                logger.info(f'Nenhum conta bancária do passageiro encontrada')
+                return jsonify([]), 200
+            
+            logger.info('Listagem de contas de bancárias bem-sucedida.')
+            return jsonify(dados), 200
+    
+    except Exception as erro:
+        logger.error(
+            f'Erro inesperado ao listar contas bancárias de passageiro: {str(erro)}')
+        return jsonify(
+            {'erro': 'Erro inesperado ao listar contas bancárias de passageiro'}), 500
+    
+
+@app10.route('/admin/contas-bancarias', methods=['GET'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def listar_contas_bancarias_admin():
+    try:
+        logger.info('Listando conta bancária...')
+
+        with conexao() as cursor:
+            cursor.execute('''
+                SELECT id, id_passageiro, banco_codigo, banco_nome,
+                    agencia, agencia_digito, conta, conta_digito,
+                    tipo_conta, titular_nome, status, principal,
+                    criado_em, atualizado_em
+                FROM contas_bancarias ORDER BY criado_em DESC''')
+            
+            dados = [{
+                'id': c[0],
+                'id_passageiro': c[1],
+                'banco_codigo': c[2],
+                'banco_nome': c[3],
+                'agencia': c[4],
+                'agencia_digito': c[5],
+                'conta': c[6],
+                'conta_digito': c[7],
+                'tipo_conta': c[8],
+                'titular_nome': c[9],
+                'status': c[10],
+                'principal': c[11],
+                'criado_em': c[12],
+                'atualizado_em': c[13]
+            } for c in cursor.fetchall()]
+
+            if not dados:
+                logger.info('Nenhum conta bancária encontrado.')
+                return jsonify([]), 200
+            
+            logger.info('Listagem de contas bancárias bem-sucedida.')
+            return jsonify(dados), 200
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao listar contas bancárias: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao listar contas bancárias!'}), 500
+
+
+@app10.route('/admin/contas-bancarias/<int:id>', methods=['GET'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def buscar_conta_bancaria_admin(id):
+    try:
+        logger.info(f'Buscando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('''
+                SELECT id, id_passageiro, banco_codigo, banco_nome, 
+                       agencia, agencia_digito, conta, conta_digito,
+                       tipo_conta, titular_nome, titular_documento,
+                       status, principal, criado_em, atualizado_em
+                FROM contas_bancarias WHERE id = %s''', (id,))
+            
+            dado = cursor.fetchone()
+
+            if not dado:
+                logger.warning(f'Conta bancária id={id} não encontrada.')
+                return jsonify({'erro': 'Conta bancária não encontrada!'}), 404
+            
+            logger.info('Busca de conta bancária bem-sucedida.')
+            return jsonify({
+                'id': dado[0],
+                'id_passageiro': dado[1],
+                'banco_codigo': dado[2],
+                'banco_nome': dado[3],
+                'agencia': dado[4],
+                'agencia_digito': dado[5],
+                'conta': dado[6],
+                'conta_digito': dado[7],
+                'tipo_conta': dado[8],
+                'titular_nome': dado[9],
+                'titular_documento': dado[10],
+                'status': dado[11],
+                'principal': dado[12],
+                'criado_em': dado[13],
+                'atualizado_em': dado[14]
+            }), 200
+        
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao buscar conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao buscar conta bancária!'}), 500
+
+
+@app10.route('/admin/contas-bancarias', methods=['POST'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def criar_conta_bancaria():
+    try:
+        logger.info('Criando conta bancária...')
+
+        dados = validar_json()
+
+        NORMALIZACOES = {
+            'id_passageiro': lambda v: int(v),
+            'banco_codigo': lambda v: f'{int(v):03d}',
+            'banco_nome': lambda v: formatar_nome(v),
+            'agencia': lambda v: str(v).strip(),
+            'agencia_digito': lambda v: str(v).strip().upper() if v else None,
+            'conta': lambda v: str(v).strip(),
+            'conta_digito': lambda v: str(v).strip().upper() if v else None,
+            'tipo_conta': lambda v: str(v).strip().lower(),
+            'titular_nome': lambda v: formatar_nome(v),
+            'titular_documento': lambda v: re.sub(r'\D', '', str(v)),
+            'principal': lambda v: int(v)
+        }
+
+        REGRAS = {
+            'id_passageiro': lambda v: v > 0,
+            'banco_codigo': lambda v: re.fullmatch(r'\d{3}', v),
+            'banco_nome': lambda v: re.fullmatch(
+                r'[A-Za-zÀ-ÿ0-9\s\.\-]{3,}', v),
+            'agencia': lambda v: re.fullmatch(r'\d{1,10}', v),
+            'agencia_digito': lambda v: v is None or re.fullmatch(r'[0-9A-Za-z]', v),
+            'conta': lambda v: re.fullmatch(r'\d{1,20}', v),
+            'conta_digito': lambda v: v is None or re.fullmatch(r'[0-9A-Za-z]', v),
+            'tipo_conta': lambda v: v in (
+                'corrente', 'poupanca', 'salario', 'pagamento'),
+            'titular_nome': lambda v: re.fullmatch(
+                r'[A-Za-zÀ-ÿ\s\.\-]{3,}', v),
+            'titular_documento': lambda v: re.fullmatch(r'\d{11}|\d{14}', v),
+            'principal': lambda v: v in (0, 1)
+        }
+
+        faltando = [c for c in REGRAS if c not in dados or dados[c] is None]
+
+        if faltando:
+            logger.warning(f"Campos obrigatórios: {', '.join(faltando)}")
+            return jsonify({'erro': f"Campos obrigatórios: {', '.join(faltando)}"}), 400
+        
+        for campo, regra in REGRAS.items():
+            try:
+                valor = dados[campo]
+                valor = NORMALIZACOES[campo](valor)
+
+                if not regra(valor):
+                    raise ValueError
+
+                dados[campo] = valor
+                 
+            except Exception:
+                logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
+                return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
+            
+        with conexao() as cursor:
+            try:
+                cursor.execute('START TRANSACTION')
+
+                cursor.execute(
+                    "SELECT id FROM passageiros WHERE id = %s"\
+                    "   AND status = 'ativo'",
+                    (dados['id_passageiro']))
+                
+                if not cursor.fetchone():
+                    logger.warning(
+                        f"Passageiro id={dados['id_passageiro']} não encontrado ou bloqueado.")
+                    raise Conflict('Passageiro não encontrado ou bloqueado!')
+                
+                if dados['principal'] == 1:
+                    cursor.execute('''
+                        SELECT id FROM contas_bancarias WHERE id_passageiro = %s
+                            AND principal = 1 FOR UPDATE''',
+                            (dados['id_passageiro']))
+                    
+                    if cursor.fetchone():
+                        logger.warning('Já existe uma conta principal.')
+                        raise Conflict('Já existe uma conta principal!')
+
+                cursor.execute('''
+                    INSERT INTO contas_bancarias
+                        (id_passageiro, banco_codigo, banco_nome, agencia,
+                        agencia_digito, conta, conta_digito, tipo_conta,
+                        titular_nome, titular_documento, principal
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (dados['id_passageiro'], dados['banco_codigo'], dados['banco_nome'],
+                    dados['agencia'], dados['agencia_digito'], dados['conta'],
+                    dados['conta_digito'], dados['tipo_conta'], dados['titular_nome'],
+                    dados['titular_documento'], dados['principal']))
+                
+                novo_id = cursor.lastrowid
+
+                cursor.execute('COMMIT')
+
+                logger.info(f'Conta id={novo_id} criada com sucesso.')
+                return jsonify({'mensagem': 'Conta criado',
+                                'id': novo_id}), 201
+            except Exception:
+                cursor.execute('ROLLBACK')
+                raise
+        
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao criar conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao criar conta bancária!'}), 500
+    
+
+@app10.route('/admin/contas-bancarias/<int:id>/principal', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def tornar_conta_bancaria_principal(id):
+    try:
+        logger.info(f'Tornar conta bancária principal com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('START TRANSACTION')
+
+            cursor.execute(
+                "SELECT id_passageiro, principal FROM contas_bancarias "\
+                    "WHERE id = %s AND status = 'ativa' FOR UPDATE",
+                    (id,))
+            
+            conta = cursor.fetchone()
+
+            if not conta:
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} não encontrado ou inativa.')
+                return jsonify(
+                    {'erro': 'Conta bancária não encontrada ou inativa!'}), 404
+            
+            id_passageiro, ja_principal = conta
+
+            if ja_principal:
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} já é principal.')
+                return jsonify({'erro': 'Conta bancária já é principal!'}), 409
+            
+            cursor.execute('''
+                UPDATE contas_bancarias SET principal = FALSE
+                    WHERE id_passageiro = %s AND principal = TRUE''',
+                    (id_passageiro,))
+
+            cursor.execute('''
+                UPDATE contas_bancarias SET principal = TRUE
+                    WHERE id = %s''', (id,))
+            
+            cursor.execute('COMMIT')
+
+            logger.info(f'Conta bancária id={id} definida como principal com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao tornar conta bancária principal: {str(erro)}')
+        return jsonify(
+            {'erro': 'Erro inesperado ao tornar conta bancária principal!'}), 500
+    
+
+@app10.route('/admin/contas-bancarias/<int:id>/bloquear', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def bloquear_conta_bancaria(id):
+    try:
+        logger.info(f'Bloqueando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('''
+                SELECT id_passageiro, principal FROM contas_bancarias 
+                   WHERE id = %s AND status = 'ativa' FOR UPDATE''',
+                   (id,))
+            
+            conta = cursor.fetchone()
+            
+            if not conta:
+                logger.warning(
+                    f'Conta bancária id={id} não encontrada ou inativa.')
+                return jsonify({'erro': 'Conta bancária não encontrada ou inativa!'}), 404
+            
+            id_passageiro, principal = conta
+
+            if principal:
+                cursor.execute('''
+                    SELECT id FROM contas_bancarias WHERE id_passageiro = %s
+                        AND status = 'ativa' AND id != %s LIMIT 1''',
+                        (id_passageiro, id))
+                
+                if not cursor.fetchone():
+                    logger.warning(f'Conta principal id={id} única.')
+                    return jsonify(
+                        {'erro': 'Não é possivel bloquear a única'
+                        ' conta principal ativa!'}), 409
+                
+            cursor.execute(
+                "UPDATE contas_bancarias SET status = 'bloqueada', " \
+                "   principal = FALSE WHERE id = %s", (id,))
+            
+            logger.info(f'Conta bancária id={id} bloqueada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao bloquear conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao bloquear conta bancária!'}), 500
+    
+
+@app10.route('/admin/contas-bancarias/<int:id>/reativar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def reativar_conta_bancaria(id):
+    try:
+        logger.info(f'Reativando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('START TRANSACTION')
+
+            cursor.execute(
+                "SELECT status FROM contas_bancarias" \
+                " WHERE id = %s FOR UPDATE", (id,))
+            
+            conta = cursor.fetchone()
+
+            if not conta:
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} não encontrada.')
+                return jsonify({'erro': 'Conta bancária não encontrada!'}), 404
+            
+            if conta[0] == 'ativa':
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} já está ativa.')
+                return jsonify({'erro': 'Conta bancária já está ativa!'}), 409
+            
+            if conta[0] == 'encerrada':
+                cursor.execute('ROLLBACK')
+                logger.warning(
+                    f'Conta bancária id={id} está encerrada não pode ser reativada.')
+                return jsonify(
+                    {'erro': 'Conta bancária está encerrada não pode ser reativada!'}), 409
+            
+            cursor.execute('''
+                UPDATE contas_bancarias SET status = 'ativa', 
+                    principal = FALSE WHERE id = %s''', (id,))
+            
+            cursor.execute('COMMIT')
+            
+            logger.info(f'Conta bancária id={id} reativada com sucesso.')
+            return '', 204
+    
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao reativar conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao reativar conta bancária!'}), 500
+
+
+@app10.route('/admin/contas-bancarias/<int:id>/encerrar', methods=['PATCH'])
+@limiter.limit('100 per hour')
+@rota_protegida(role='admin')
+def encerrar_conta_bancaria(id):
+    try:
+        logger.info(f'Encerrando conta bancária com id={id}...')
+
+        with conexao() as cursor:
+            cursor.execute('START TRANSACTION')
+
+            cursor.execute(
+                "SELECT status FROM contas_bancarias" \
+                "   WHERE id = %s FOR UPDATE", (id,))
+            
+            conta = cursor.fetchone()
+
+            if not conta:
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} não encontrada.')
+                return jsonify({'erro': 'Conta bancária não encontrada!'}
+                               ), 404
+            
+            if conta[0] == 'encerrada':
+                cursor.execute('ROLLBACK')
+                logger.warning(f'Conta bancária id={id} já foi encerrada.')
+                return jsonify({'erro': 'Conta bancária já foi encerrada!'}), 409
+
+            cursor.execute(
+                "UPDATE contas_bancarias SET status = 'encerrada', " \
+                "   principal = FALSE WHERE id = %s "\
+                "   LIMIT 1", (id,))
+            
+            cursor.execute('COMMIT')
+            
+            logger.info(f'Conta bancária id={id} encerrada com sucesso.')
+            return '', 204
+        
+    except Exception as erro:
+        logger.error(f'Erro inesperado ao encerrar conta bancária: {str(erro)}')
+        return jsonify({'erro': 'Erro inesperado ao encerrar conta bancária!'}), 500
+
+
+register_erro_handlers(app10)
 
 
 def start_api(app, port):
@@ -2962,8 +2990,8 @@ def start_api(app, port):
 def main():
     apis = [(app1, 5001),
             (app2, 5002),
-            (app5, 5003),
-            (app6, 5004)]
+            (app3, 5003),
+            (app4, 5004)]
         
 
     for app, port in apis:
