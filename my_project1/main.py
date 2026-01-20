@@ -88,32 +88,56 @@ with conexao() as cursor:
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 usuario VARCHAR(100) NOT NULL UNIQUE,
                 senha_hash VARCHAR(255) NOT NULL,
-                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-                   
-                INDEX idx_usuario_u (usuario)
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
     
-
+    cursor.execute("SHOW INDEX FROM usuarios WHERE Key_name = 'idx_usuario_u'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_usuario_u ON usuarios(usuario)')
+    
+    cursor.execute("SHOW INDEX FROM usuarios WHERE Key_name = 'idx_usuario_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_usuario_data ON usuarios(criado_em)')
+    
+    
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS refresh_tokens (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                user_id INT UNSIGNED NOT NULL,
-                token_hash CHAR(64) NOT NULL UNIQUE,
-                expires_at DATETIME NOT NULL,
-                revoked BOOLEAN DEFAULT FALSE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT fk_refresh_user_id
-                   FOREIGN KEY (user_id)
+                id_usuario INT UNSIGNED NOT NULL,
+                hash_token CHAR(64) NOT NULL,
+                expira_em DATETIME NOT NULL,
+                revogado BOOLEAN DEFAULT FALSE,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_refresh_usuario
+                   FOREIGN KEY (id_usuario)
                    REFERENCES usuarios(id)
                    ON DELETE CASCADE
                    ON UPDATE RESTRICT,
-
-                INDEX idx_refresh_user_id (user_id),
-                INDEX idx_refresh_token (token_hash),
-                INDEX idx_refresh_expires (expires_at)
+                
+                UNIQUE KEY uk_refresh_token (hash_token)
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
+    
+    cursor.execute(
+        "SHOW INDEX FROM refresh_tokens WHERE Key_name = 'idx_refresh_usuario'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_refresh_usuario ON refresh_tokens(id_usuario)')
+
+    cursor.execute(
+        "SHOW INDEX FROM refresh_tokens WHERE Key_name = 'idx_refresh_token'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_refresh_token ON refresh_tokens(hash_token)')
+    
+    cursor.execute(
+        "SHOW INDEX FROM refresh_tokens WHERE Key_name = 'idx_refresh_expira'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_refresh_expira ON refresh_tokens(expira_em)')
+
+    cursor.execute(
+        "SHOW INDEX FROM refresh_tokens WHERE Key_name = 'idx_refresh_data'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE INDEX idx_refresh_data ON refresh_tokens(criado_em)')
 
 
     cursor.execute('''
@@ -164,10 +188,10 @@ with conexao() as cursor:
             titular_documento VARCHAR(20) NOT NULL,
             status ENUM('ativa', 'bloqueada', 'encerrada') NOT NULL DEFAULT 'ativa',
             principal BOOLEAN DEFAULT FALSE,
-            principal_ativa TINYINT(1)
+            principal_ativa BOOLEAN
                 GENERATED ALWAYS AS (
                         CASE
-                            WHEN principal = 1 AND status = 'ativa' THEN 1
+                            WHEN principal = TRUE AND status = 'ativa' THEN TRUE
                             ELSE NULL
                         END
                 ) STORED,
@@ -277,9 +301,9 @@ with conexao() as cursor:
         cursor.execute('CREATE INDEX idx_plataforma_status ON contas_plataforma(status)')
     
     cursor.execute(
-        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_conta_data'")
+        "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_data'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_conta_data ON contas_plataforma(criado_em)')
+        cursor.execute('CREATE INDEX idx_plataforma_data ON contas_plataforma(criado_em)')
 
     cursor.execute(
         "SHOW INDEX FROM contas_plataforma WHERE Key_name = 'idx_plataforma_passa_status'")
@@ -444,9 +468,9 @@ with conexao() as cursor:
             valor_total DECIMAL(14, 2) NOT NULL CHECK(valor_total > 0),
             status ENUM('aberta', 'paga', 'fechada', 'atrasada', 'cancelada')
                     NOT NULL DEFAULT 'aberta',
-            paga_em DATETIME NULL,
-            criada_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            atualizada_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            pago_em DATETIME NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                 ON UPDATE CURRENT_TIMESTAMP,
             
             CONSTRAINT fk_fatura_passageiro
@@ -456,7 +480,7 @@ with conexao() as cursor:
                    
             CONSTRAINT chk_fatura_status_paga
                 CHECK(
-                   (status = 'paga' AND paga_em IS NOT NULL)
+                   (status = 'paga' AND pago_em IS NOT NULL)
                    OR status <> 'paga'),
             
             UNIQUE KEY uk_fatura_passa_vencimento (id_passageiro, vencimento)
@@ -474,7 +498,7 @@ with conexao() as cursor:
 
     cursor.execute("SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_data'")
     if not cursor.fetchone():
-        cursor.execute('CREATE INDEX idx_fatura_data ON faturas_credito(criada_em)')
+        cursor.execute('CREATE INDEX idx_fatura_data ON faturas_credito(criado_em)')
 
     cursor.execute(
         "SHOW INDEX FROM faturas_credito WHERE Key_name = 'idx_fatura_passa_status'")
@@ -488,12 +512,12 @@ with conexao() as cursor:
         CREATE TABLE IF NOT EXISTS parcelas_credito (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_fatura BIGINT UNSIGNED NOT NULL,
-            parcela INT NOT NULL CHECK(parcela > 0),
+            parcelas TINYINT UNSIGNED NOT NULL CHECK(parcelas BETWEEN 1 AND 12),
             vencimento DATE NULL,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
             status ENUM('pendente', 'paga', 'cancelada')
                 NOT NULL DEFAULT 'pendente',
-            paga_em DATETIME NULL,
+            pago_em DATETIME NULL,
             
             CONSTRAINT fk_parcela_fatura
                 FOREIGN KEY (id_fatura)
@@ -501,10 +525,10 @@ with conexao() as cursor:
                    
             CONSTRAINT chk_parcela_status_paga
                 CHECK(
-                   (status = 'paga' AND paga_em IS NOT NULL)
+                   (status = 'paga' AND pago_em IS NOT NULL)
                    OR status <> 'paga'),
             
-            UNIQUE KEY uk_fatura_parcela (id_fatura, parcela)
+            UNIQUE KEY uk_fatura_parcela (id_fatura, parcelas)
         ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
     ''')
 
@@ -525,14 +549,15 @@ with conexao() as cursor:
             'CREATE INDEX idx_parcela_fatura_status' \
             ' ON parcelas_credito(id_fatura, status)')
         
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS pagamentos_credito_transacoes (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             id_passageiro INT UNSIGNED NOT NULL,
             id_fatura BIGINT UNSIGNED NOT NULL,
             valor DECIMAL(14, 2) NOT NULL CHECK(valor > 0),
-            parcelas TINYINT UNSIGNED NOT NULL CHECK(parcelas > 0),
-            status ENUM('pendente', 'paga', 'cancelada')
+            parcelas TINYINT UNSIGNED NOT NULL CHECK(parcelas BETWEEN 1 AND 12),
+            status ENUM('pendente', 'pago', 'cancelado')
                     NOT NULL DEFAULT 'pendente',
             autorizado_em DATETIME NULL,
             criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -551,8 +576,8 @@ with conexao() as cursor:
             
             CONSTRAINT chk_transacoes_status_autorizado
                 CHECK(
-                   (status = 'paga' AND autorizado_em IS NOT NULL)
-                   OR status <> 'paga')
+                   (status = 'pago' AND autorizado_em IS NOT NULL)
+                   OR status <> 'pago')
             ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
         ''')
     
@@ -911,11 +936,11 @@ with conexao() as cursor:
                 remetente VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(remetente)) > 0),
                 recebedor VARCHAR(100) NOT NULL CHECK(LENGTH(TRIM(recebedor)) > 0),
                 metodo_pagamento ENUM('pix', 'credito', 'debito', 'boleto') NOT NULL,
-                pagamento ENUM('pendente', 'pago', 'cancelado',
-                    'estornado') NOT NULL DEFAULT 'pendente',
                 parcelas TINYINT UNSIGNED NULL CHECK(parcelas BETWEEN 1 AND 12),
                 valor_parcela DECIMAL(10, 2) NULL CHECK(valor_parcela > 0),
                 valor_total DECIMAL(10, 2) NOT NULL CHECK(valor_total > 0),
+                status ENUM('pendente', 'pago', 'cancelado',
+                    'estornado') NOT NULL DEFAULT 'pendente',
                 criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
                    ON UPDATE CURRENT_TIMESTAMP,
@@ -960,7 +985,7 @@ with conexao() as cursor:
     if not cursor.fetchone():
         cursor.execute(
             'CREATE INDEX idx_pagamento_viagem_status ON' \
-            ' registros_pagamento(id_viagem, pagamento)')
+            ' registros_pagamento(id_viagem, status)')
 
 
 @app1.route('/admin/passageiros', methods=['GET'])
