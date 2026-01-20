@@ -27,7 +27,8 @@ import logging
 import bcrypt
 import re
 import mysql.connector
-import secrets
+import string
+import random
 import uuid
 
 
@@ -2624,60 +2625,101 @@ def criar_pagamento_pix_admin():
             except Exception:
                 logger.warning(f'Valor inválido para {campo}: {dados.get(campo)}')
                 return jsonify({'erro': f'Valor inválido para {campo}!'}), 400
-        
-        txid = secrets.token_urlsafe(16)[:35]
-        idempotency_key = str(uuid.uuid4())
-        liquidado_em = None
 
         with conexao() as cursor:
-            cursor.execute(
-                "SELECT nome_recebedor, chave_pix, cidade, status" \
-                "   FROM configuracoes_pix WHERE id = 1")
-            
-            config_pix = cursor.fetchone()
+            try:
+                cursor.execute('START TRANSACTION')
 
-            if not config_pix:
-                logger.warning(f'Chave pix id=1 não encontrada.')
-                return jsonify({'erro': 'Chave pix não encontrada!'}), 404
-            
-            nome_recebedor, chave_pix, cidade, status = config_pix
+                cursor.execute(
+                    "SELECT nome_recebedor, chave_pix, cidade, status" \
+                    "   FROM configuracoes_pix WHERE id = 1")
+                
+                config_pix = cursor.fetchone()
 
-            if status == 'removida':
-                logger.warning(f'Chave pix id=1 foi removida.')
-                return jsonify({'erro': 'Chave pix foi removida!'}), 409
+                if not config_pix:
+                    logger.warning(f'Chave pix id=1 não encontrada.')
+                    raise NotFound('Chave pix não encontrada!')
+                
+                nome_recebedor, chave_pix, cidade, status = config_pix
 
-            qr_code_payload = gerar_qr_pix(
-            chave_pix=chave_pix,
-            valor=dados['valor'],
-            txid=txid,
-            nome=nome_recebedor,
-            cidade=cidade
-        )
+                if status == 'removida':
+                    logger.warning(f'Chave pix id=1 foi removida.')
+                    raise Conflict('Chave pix foi removida!')
 
-            cursor.execute(
-                'SELECT id FROM passageiros WHERE id = %s',
-                  (dados['id_passageiro'],))
-            
-            if not cursor.fetchone():
-                logger.warning(f"Passageiro id={dados['id_passageiro']} não encontrado.")
-                return jsonify({'erro': 'Passageiro não encontrado!'}), 404
-            
-            cursor.execute('''
-                INSERT INTO pagamentos_pix
-                    (id_passageiro, txid, idempotency_key,
-                    valor, qr_code_payload, status, liquidado_em)
-                    VALUES (%s, %s, %s, %s, %s, 'pendente', %s)''', 
-                    (dados['id_passageiro'], txid, 
-                    idempotency_key, dados['valor'], 
-                    qr_code_payload, liquidado_em))
-            
-            novo_id = cursor.lastrowid
+                cursor.execute(
+                    'SELECT id FROM passageiros WHERE id = %s',
+                    (dados['id_passageiro'],))
+                
+                if not cursor.fetchone():
+                    logger.warning(f"Passageiro id={dados['id_passageiro']} não encontrado.")
+                    raise NotFound('Passageiro não encontrado!')
+                
+                idempotency_key = (request.headers.get('Idempotency-Key') 
+                                or request.headers.get('X-Request-Id'))
+                if not idempotency_key:
+                    logger.warning('Idempotency-key é obrigatório.')
+                    raise BadRequest(
+                        'Idempotency-key é obrigatório. Gere um UUID e envie no header!')
 
-            logger.info(f'Pagamento id={novo_id} via pix gerado com sucesso.')
-            return jsonify({
-                'mensagem': 'Pagamento via pix gerado!',
-                'id': novo_id,
-                'qr_code_url': f'/pagamentos/pix/{novo_id}/qrcode'}), 201
+                try:
+                    uuid.UUID(idempotency_key)
+                except ValueError:
+                    logger.warning('Idempotency-Key inválida.')
+                    raise BadRequest('idempotency-Key inválida. Use o formato UUID v4!')
+
+                cursor.execute('''
+                    SELECT id, qr_code_payload FROM pagamentos_pix
+                        WHERE idempotency_key = %s FOR UPDATE''', 
+                        (idempotency_key,))
+                
+                existente = cursor.fetchone()
+                if existente:
+                    logger.warning(
+                        'Pagamentos via PIX já existe para esta Idempotency-Key.')
+                    return jsonify({
+                        'id': existente[0],
+                        'QR Code': existente[1]
+                    }), 200
+                
+                txid = ''.join(
+                    random.choices(string.ascii_letters + string.digits, k=26)
+                )
+                qr_code_payload = gerar_qr_pix(
+                    chave_pix=chave_pix,
+                    valor=dados['valor'],
+                    txid=txid,
+                    nome=nome_recebedor,
+                    cidade=cidade
+                )
+                liquidado_em = None
+                
+                cursor.execute('''
+                    INSERT INTO pagamentos_pix
+                        (id_passageiro, txid, idempotency_key,
+                        valor, qr_code_payload, status, liquidado_em)
+                        VALUES (%s, %s, %s, %s, %s, 'pendente', %s)''', 
+                        (dados['id_passageiro'], txid, 
+                        idempotency_key, dados['valor'], 
+                        qr_code_payload, liquidado_em))
+                
+                novo_id = cursor.lastrowid
+
+                cursor.execute('COMMIT')
+
+                logger.info(f'Pagamento via pix criado id={novo_id}.')
+                return jsonify({
+                    'mensagem': 'Pagamento via pix gerado!',
+                    'id': novo_id,
+                    'pix_copia_e_cola': qr_code_payload,
+                    'qr_code_url': f'/pagamentos/pix/{novo_id}/qrcode'}), 201
+            
+            except Exception:
+                cursor.execute('ROLLBACK')
+                raise
+
+    except (BadRequest, Conflict, NotFound) as erro:
+        logger.warning(f'Erro de válidação: {erro.description}')
+        return jsonify({'erro': erro.description}), erro.code
     
     except Exception as erro:
         logger.error(f'Erro inesperado ao criar pagamento via pix: {str(erro)}')
